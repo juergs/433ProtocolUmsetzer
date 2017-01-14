@@ -10,8 +10,30 @@ Credentials:
     http://helmpcb.com/software/reading-writing-structs-floats-and-other-objects-to-eeprom
     https://github.com/jacobsax/bitArray-library-for-Arduino
     https://github.com/RFD-FHEM/RFFHEM
+    protocol-definition: https://docs.google.com/document/d/121ZH3omAZsdhFi3GSB-YdnasMjIQSGIcaS7QW6KsACA/mobilebasic?pli=1
+    https://forum.arduino.cc/index.php?topic=136836.75
+    Antenna:
+    http://www.mikrocontroller.net/articles/433_MHz_Funk%C3%BCbertragung
 
 
+    Printf-Formats: 
+    ==============
+    %d %i	Decimal signed integer.
+    %o	    Octal integer.
+    %x %X	Hex integer.
+    %u	    Unsigned integer.
+    %c	    Character.
+    %s	    String.	siehe unten.
+    %f	    double
+    %e %E	double.
+    %g %G	double.
+    %p	    pointer.
+    %n	    Number of characters written by this printf. No argument expected.
+    %%	%.  No argument expected.
+
+    from: http://home.fhtw-berlin.de/~junghans/cref/FUNCTIONS/format.html
+
+    
 /********************************************************* */
 
 
@@ -100,9 +122,6 @@ union pd
 
 
 
-//union protcol protocol; 
-
-
 /*
 bitArray  proto1;
 bitArray  proto2;
@@ -111,27 +130,30 @@ bitArray  proto4;
 bitArray  proto5;
 bitArray  proto6;
 */
-void printResults(unsigned long value);
+void    printResults(unsigned long value);
 boolean crcValid(unsigned long value, byte checksum);
-//void rx433Handler();
-void rx433Handler2();
-void fifoWrite(long item);
+//void  rx433Handler();
+void    rx433Handler2();
+void    fifoWrite(long item);
 unsigned long fifoRead();
 boolean fifoAvailable();
-int freeRam();
-void printBits(size_t const size, void const * const ptr);
-int serial_putchar(char c, FILE* f);
-void populateBitArray(byte pos, byte value);
-byte readBitArray(byte pos);
-void printLLNumber(unsigned long long n, uint8_t base);
+int     freeRam();
+void    printBits(size_t const size, void const * const ptr);
+int     serial_putchar(char c, FILE* f);
+void    populateBitArray(byte pos, byte value);
+byte    readBitArray(byte pos);
+void    printLLNumber(unsigned long long n, uint8_t base);
 
+//-------------------------------------------------------------
+//-------------------------------------------------------------
 void setup()
 {
     //--- set stdout for printf to serial
     fdev_setup_stream(&serial_stdout, serial_putchar, NULL, _FDEV_SETUP_WRITE);
     stdout = &serial_stdout;
 
-    Serial.begin(57600);
+    //Serial.begin(57600);
+    Serial.begin(115200);
     pinMode(RX433DATA, INPUT);
     attachInterrupt(RX433INTERRUPT, rx433Handler2, CHANGE);
     pinMode(12, OUTPUT);
@@ -162,8 +184,6 @@ void setup()
     //                  000000000000000000000000000000000000000000
 
 
-    //volatile union p p; 
-
  /*
     p.raw = 61186399307584ULL;
  
@@ -174,10 +194,7 @@ void setup()
     // Serial.print("TEST2: "); Serial.println((unsigned long long)p.raw,8);
     Serial.println("Internal: ");
     printLLNumber(p.raw,8);
-    */
-
-    /*
-
+    
     Serial.println();
 
     Serial.println("Internal: ");
@@ -198,17 +215,14 @@ void setup()
 
     Serial.println();
 
-    */
-    /*
     ptst.d.b7=128;
     Serial.print("ptst: ");
     ll = ptst.raw;
     xx = ll/1000000000ULL;
     if (xx >0) Serial.print((long)xx);
     Serial.println((long)(ll-xx*1000000000));
-    */
+    
 
-    /*
     uint64_t pipe = 0x12345ABCD9LL;//lets assume  the data is 12345ABCD9 hexadecimal
     char buf[50];
 
@@ -224,7 +238,7 @@ void setup()
 
     Serial.println("#############");
 }
-
+//-------------------------------------------------------------
 void loop()
 {
     /*
@@ -246,7 +260,7 @@ void loop()
     }
     */
 }
-
+//-------------------------------------------------------------
 void rx433Handler2()
 {
     static long           rx433LineUp, rx433LineDown;
@@ -279,6 +293,7 @@ void rx433Handler2()
             bitsCounted = 0;
             p.raw = 0ULL;
             raw = 0;
+            printf("*\n");
             digitalWrite(DEBUG_4_PIN, HIGH);
         }
         else if (isPulseForHigh)
@@ -290,6 +305,9 @@ void rx433Handler2()
                                                      //populateBitArray(bitsCounted,HIGH);                          
             bitsCounted++;
             digitalWrite(DEBUG_1_PIN, HIGH);
+
+            //printf("[H] %d ", bitsCounted);
+            printf("1");
         }
         else if (isPulseForLow)
         {
@@ -297,6 +315,8 @@ void rx433Handler2()
             bitsCounted++;
             digitalWrite(DEBUG_2_PIN, HIGH);
             digitalWrite(DEBUG_1_PIN, HIGH);
+            //printf("[L] %d ", bitsCounted);
+            printf("0");
         }
         else if (isPulseUndef)
         {
@@ -304,27 +324,30 @@ void rx433Handler2()
             p.raw = 0;
             raw = 0;
             digitalWrite(DEBUG_5_PIN, HIGH);
+            printf("\n[U]\n ");
         }
 
-        if (bitsCounted >= KW9010_MESSAGELEN) // all bits received
+        if ( bitsCounted >= (KW9010_MESSAGELEN-1) ) // all bits received
         {
             digitalWrite(12, HIGH);
-
+            printf("\tCount[M]: %d\n", bitsCounted);
             //printf("RAW: %u \t| RAW: %u \t| ID: %d \t| BAT: %d \t| CHAN: %d \t| TEMP: %d \t| HUM: %d \t| CRC: %d \n",raw, p.raw, p.d.id, p.d.bat, p.d.chan, p.d.temp, p.d.hum, p.d.crc );            
-
+/*
             uint64_t ll = p.raw;
             uint64_t xx = ll / 1000000000ULL;
             printf("p.raw: ");
             if (xx >0) Serial.print((long)xx);
             Serial.print((long)(ll - xx * 1000000000));
             Serial.print("  - ");
+*/
 
+/*
             ll = raw;
             xx = ll / 1000000000ULL;
             printf("raw: ");
             if (xx >0) Serial.print((long)xx);
             Serial.println((long)(ll - xx * 1000000000));
-
+*/
             /*
             for (int i=0; i<42; i++)
             Serial.print(readBitArray(i));
@@ -334,6 +357,17 @@ void rx433Handler2()
             p.raw = 0LL;
             raw = 0;
             digitalWrite(DEBUG_3_PIN, HIGH);
+            /*
+            //noInterrupts(); 
+            unsigned long start_time = micros();
+            unsigned long duration = (10 * 1000 * 1000);
+            while ((micros() - start_time) < duration );
+            {
+                // wait 10 uS for display on Loganalyzer - delay not functional?
+                ;
+            }            
+            //interrupts(); 
+            */
         }
     }
     else
@@ -357,7 +391,7 @@ void rx433Handler2()
     digitalWrite(DEBUG_4_PIN, LOW);
     digitalWrite(DEBUG_5_PIN, LOW);
 }
-
+//-------------------------------------------------------------
 void populateBitArray(byte pos, byte value)
 {
     proto.writeBit(pos, value);
@@ -376,7 +410,7 @@ void populateBitArray(byte pos, byte value)
     proto6.writeBit(pos,value);
     */
 }
-
+//-------------------------------------------------------------
 byte readBitArray(byte pos)
 {
     byte val = LOW;
@@ -399,7 +433,7 @@ byte readBitArray(byte pos)
 
     return val;
 }
-
+//-------------------------------------------------------------
 /*
 ///////////////////////////////////////////////////////////////////////////////////////
 /// dont touch!
@@ -485,8 +519,65 @@ HighVal = rx433LineDown - rx433LineUp; // calculate the HIGH pulse time
 }
 */
 
+//-------------------------------------------------------------
+/*
+void rx433Handler_fifo()
+{
+    static long rx433LineUp, rx433LineDown;
+    static unsigned long rxBits = 0;
+    static byte crcBits = 0;
+    static byte bitsCounted = 0;
+    long LowVal, HighVal;
+    byte rx433State = digitalRead(RX433DATA); // current pin state
+    if (rx433State) // pin is now HIGH
+    {
+        rx433LineUp = micros(); // line went HIGH after being LOW at this time
+        LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time
+        if (LowVal>KW9010_SYNC - 2 * KW9010_GLITCH && LowVal<KW9010_SYNC + 2 * KW9010_GLITCH)
+        {
+            rxBits = 0;
+            crcBits = 0;
+            bitsCounted = 0;
+        }
+        else if (LowVal>KW9010_ONE - KW9010_GLITCH && LowVal<KW9010_ONE + KW9010_GLITCH)
+        { // set the one bits
+            if (bitsCounted<32)
+                bitSet(rxBits, bitsCounted);
+            else
+                bitSet(crcBits, bitsCounted - 32);
+            bitsCounted++;
+        }
+        else if (LowVal>KW9010_ZERO - KW9010_GLITCH && LowVal<KW9010_ZERO + KW9010_GLITCH)
+        { // setting zero bits is not necessary, but count them
+            bitsCounted++;
+        }
+        else // received bit is not a SYNC, ONE or ZERO bit, so restart
+        {
+            rxBits = 0;
+            crcBits = 0;
+            bitsCounted = 0;
+        }
+        if (bitsCounted >= KW9010_MESSAGELEN) // all bits received
+        {
+            if (crcValid(rxBits, crcBits))
+                fifoWrite(rxBits); // write valid value to FIFO buffer
+            else
+                fifoWrite(0);  // write 0 to FIFO buffer (0 = invalid value received)
 
+            rxBits = 0;
+            crcBits = 0;
+            bitsCounted = 0;
+        }
+    }
+    else
+    { // High values have no information with them
+        rx433LineDown = micros(); // line went LOW after being HIGH
+        HighVal = rx433LineDown - rx433LineUp; // calculate the HIGH pulse time
+    }
+}
+*/ 
 
+//-------------------------------------------------------------
 void fifoWrite(long item)
 // write item into ring buffer
 {
@@ -496,7 +587,7 @@ void fifoWrite(long item)
     if (fifoWriteIndex >= FIFOSIZE) fifoWriteIndex = 0; // ring buffer is at its end
 }
 
-
+//-------------------------------------------------------------
 unsigned long fifoRead()
 // always check first if item is available with fifoAvailable()
 // before reading the ring buffer using this function
@@ -509,19 +600,19 @@ unsigned long fifoRead()
     sei(); // Interrupts on again
     return(item);
 }
-
+//-------------------------------------------------------------
 boolean fifoAvailable()
 // item is available for reading if (fifoReadIndex!=fifoWriteIndex)
 {
     return (fifoReadIndex != fifoWriteIndex);
 }
-
+//-------------------------------------------------------------
 int freeRam() {
     extern int __heap_start, *__brkval;
     int v;
     return (int)&v - (__brkval == 0 ? (int)&__heap_start : (int)__brkval);
 }
-
+//-------------------------------------------------------------
 void printBits(size_t const size, void const * const ptr)
 {
     unsigned char *b = (unsigned char*)ptr;
@@ -538,13 +629,14 @@ void printBits(size_t const size, void const * const ptr)
     }
     puts("");
 }
-
+//-------------------------------------------------------------
 //--- function that printf and related will use to print
 int serial_putchar(char c, FILE* f)
 {
     if (c == '\n') serial_putchar('\r', f);
     return Serial.write(c) == 1 ? 0 : 1;
 }
+//-------------------------------------------------------------
 void printResults(unsigned long value)
 {
     // Sensor ID
@@ -574,7 +666,7 @@ void printResults(unsigned long value)
     bool forcedSend = value >> 11 & 0b1;  // bit 11 is set if manual send button was pressed
     Serial.print('\t'); Serial.print(forcedSend);
 }
-
+//-------------------------------------------------------------
 boolean crcValid(unsigned long value, byte checksum)
 // check if received crc is correct for received value
 {
@@ -605,3 +697,6 @@ void printLLNumber(unsigned long long n, uint8_t base)
     for (; i > 0; i--)
         printf("%s\n", s);
 }
+//==================================================================
+// <eof>
+//==================================================================
