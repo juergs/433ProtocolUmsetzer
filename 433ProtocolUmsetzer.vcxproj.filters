@@ -21,5 +21,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="433ProtocolTransponder.ino" />
+    <None Include="README.md" />
   </ItemGroup>
 </Project>

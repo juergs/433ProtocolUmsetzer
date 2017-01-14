@@ -34,7 +34,7 @@ Credentials:
     from: http://home.fhtw-berlin.de/~junghans/cref/FUNCTIONS/format.html
 
     
-/********************************************************* */
+********************************************************* */
 
 
 
@@ -73,7 +73,7 @@ where i is 0-3.
 #define KW9010_SYNC   8000    // length in µs of starting pulse
 #define KW9010_ONE    4000     // length in µs of ONE pulse
 #define KW9010_ZERO   2000    // length in µs of ZERO pulse
-#define KW9010_GLITCH 200     // pulse length variation for ONE and ZERO pulses
+#define KW9010_GLITCH 250     // pulse length variation for ONE and ZERO pulses
 #define KW9010_MESSAGELEN 42 //36  // number of bits in one message
 
 #define FIFOSIZE 8  // Fifo Buffer size 8 can hold up to 7 items
@@ -267,6 +267,10 @@ void rx433Handler2()
     static unsigned long  rxBits = 0;
     static byte           crcBits = 0;
     volatile static byte  bitsCounted = 0;
+    volatile static byte  cntSync = 0;
+    volatile    boolean  startCondition = false;
+    volatile    boolean   lastPulseWasSync = false;
+
     long                  LowVal, HighVal;
     unsigned long         dauer, timestamp;
 
@@ -274,6 +278,8 @@ void rx433Handler2()
     boolean               isPulseForLow = false;
     boolean               isPulseSync = false;
     boolean               isPulseUndef = false;
+ 
+
 
     byte rx433State = digitalRead(RX433DATA); // current pin state
 
@@ -293,8 +299,10 @@ void rx433Handler2()
             bitsCounted = 0;
             p.raw = 0ULL;
             raw = 0;
-            printf("*\n");
+            //if (startCondition = true)
+                printf("\n* %d", startCondition);
             digitalWrite(DEBUG_4_PIN, HIGH);
+            lastPulseWasSync = true; 
         }
         else if (isPulseForHigh)
         {
@@ -307,7 +315,11 @@ void rx433Handler2()
             digitalWrite(DEBUG_1_PIN, HIGH);
 
             //printf("[H] %d ", bitsCounted);
-            printf("1");
+            printf("[H] %d ", startCondition);
+            if (startCondition == true)
+                printf("1");
+
+            lastPulseWasSync = false;
         }
         else if (isPulseForLow)
         {
@@ -315,22 +327,57 @@ void rx433Handler2()
             bitsCounted++;
             digitalWrite(DEBUG_2_PIN, HIGH);
             digitalWrite(DEBUG_1_PIN, HIGH);
+            
             //printf("[L] %d ", bitsCounted);
-            printf("0");
+            printf("[L] %d ", startCondition);
+            if (startCondition)
+                printf("0");
+
+            lastPulseWasSync = false;
         }
         else if (isPulseUndef)
         {
             bitsCounted = 0;
             p.raw = 0;
             raw = 0;
+            
             digitalWrite(DEBUG_5_PIN, HIGH);
-            printf("\n[U]\n ");
+            
+            //printf("\n ");
+            
+            lastPulseWasSync = false;
+            startCondition = false; 
+            cntSync = 0;
         }
 
-        if ( bitsCounted >= (KW9010_MESSAGELEN-1) ) // all bits received
+        if (lastPulseWasSync)
+        {
+            cntSync++; 
+            if (cntSync > 11)
+            {
+                startCondition = true;                
+                printf("Sync: %d [S] %d   \n", cntSync, startCondition);
+            }
+        }
+        else
+        { 
+            //startCondition = false; 
+            cntSync = 0; 
+        }
+
+        if ( bitsCounted >= (KW9010_MESSAGELEN) ) // all bits received
         {
             digitalWrite(12, HIGH);
             printf("\tCount[M]: %d\n", bitsCounted);
+            bitsCounted = 0;
+            p.raw = 0LL;
+            raw = 0;
+            startCondition = false;
+            cntSync = 0;
+            digitalWrite(DEBUG_3_PIN, HIGH);
+
+
+
             //printf("RAW: %u \t| RAW: %u \t| ID: %d \t| BAT: %d \t| CHAN: %d \t| TEMP: %d \t| HUM: %d \t| CRC: %d \n",raw, p.raw, p.d.id, p.d.bat, p.d.chan, p.d.temp, p.d.hum, p.d.crc );            
 /*
             uint64_t ll = p.raw;
@@ -353,10 +400,8 @@ void rx433Handler2()
             Serial.print(readBitArray(i));
             Serial.println("");
             */
-            bitsCounted = 0;
-            p.raw = 0LL;
-            raw = 0;
-            digitalWrite(DEBUG_3_PIN, HIGH);
+            
+
             /*
             //noInterrupts(); 
             unsigned long start_time = micros();
@@ -695,7 +740,7 @@ void printLLNumber(unsigned long long n, uint8_t base)
     char s;
     s = (char)(buf[i - 1] < 10 ? "0" + buf[i - 1] : "A" + buf[i - 1] - 10);
     for (; i > 0; i--)
-        printf("%s\n", s);
+        printf("%d\n", s);
 }
 //==================================================================
 // <eof>
