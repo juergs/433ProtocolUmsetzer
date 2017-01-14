@@ -18,6 +18,9 @@
     <ClInclude Include="__vm\.433ProtocolUmsetzer.vsarduino.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="fifo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="433ProtocolTransponder.ino" />

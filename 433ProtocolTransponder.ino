@@ -36,7 +36,7 @@ Credentials:
     
 ********************************************************* */
 
-
+#include "fifo.h"
 
 /*
 *
@@ -71,16 +71,19 @@ where i is 0-3.
 #define RX433INTERRUPT 0  // interrupt number for receive pin
 
 #define KW9010_SYNC   8000    // length in µs of starting pulse
+#define KW9010_SYNC_GLITCH 1000     // pulse length variation for ONE and ZERO pulses
 #define KW9010_ONE    4000     // length in µs of ONE pulse
 #define KW9010_ZERO   2000    // length in µs of ZERO pulse
 #define KW9010_GLITCH 250     // pulse length variation for ONE and ZERO pulses
 #define KW9010_MESSAGELEN 42 //36  // number of bits in one message
 
-#define FIFOSIZE 8  // Fifo Buffer size 8 can hold up to 7 items
+#define FIFOSIZE 100  // Fifo Buffer size 8 can hold up to 7 items
 
 volatile unsigned long fifoBuf[FIFOSIZE]; // ring buffer, war long 
 
 volatile byte fifoReadIndex, fifoWriteIndex;  // read and write index into ring buffer
+volatile boolean flagReady = false; 
+
 
 FILE      serial_stdout;          // needed for printf 
 
@@ -120,9 +123,10 @@ union pd
     } d;
 } ptst;
 
+SimpleFIFO<uint8_t, FIFOSIZE> sFIFO; //store 8 bytes
 
 
-/*
+                           /*
 bitArray  proto1;
 bitArray  proto2;
 bitArray  proto3;
@@ -183,7 +187,7 @@ void setup()
     Serial.println(F("12345678901234567890123456789012345678901234567890 \n"));
     //                  000000000000000000000000000000000000000000
 
-
+    
  /*
     p.raw = 61186399307584ULL;
  
@@ -259,36 +263,58 @@ void loop()
     Serial.println();
     }
     */
+
+
+    if (flagReady)
+    {
+        noInterrupts(); 
+        //printf("F: %d \n", sFIFO.count());
+        //Serial.println(F("         1         2         3         4         5"));
+        //Serial.println(F("12345678901234567890123456789012345678901234567890 \n"));
+        for (int i = 0; i < sFIFO.count(); i++)
+        {
+            printf("%d", sFIFO.dequeue()); 
+            
+            //Serial.print(F("Dequeue "));
+            //Serial.println(sFIFO.dequeue());
+        }
+        printf("\n");
+        flagReady = false; 
+        sFIFO.flush();
+        interrupts(); 
+    }
+    //else
+    //    printf("F: %d \n", sFIFO.count());
+
+    //delay(10000); 
+
 }
+
+
 //-------------------------------------------------------------
 void rx433Handler2()
 {
     static long           rx433LineUp, rx433LineDown;
     static unsigned long  rxBits = 0;
     static byte           crcBits = 0;
-    volatile static byte  bitsCounted = 0;
-    volatile static byte  cntSync = 0;
-    volatile    boolean  startCondition = false;
-    volatile    boolean   lastPulseWasSync = false;
-
+    volatile static byte    bitsCounted = 0;
+    volatile static byte    cntSync = 0;
+    volatile static boolean startCondition = false;
+    volatile static boolean lastPulseWasSync = false;
     long                  LowVal, HighVal;
     unsigned long         dauer, timestamp;
-
     boolean               isPulseForHigh = false;
     boolean               isPulseForLow = false;
     boolean               isPulseSync = false;
     boolean               isPulseUndef = false;
- 
-
 
     byte rx433State = digitalRead(RX433DATA); // current pin state
 
     if (rx433State)  // pin is now HIGH -> fallende Flanke 
     {
-        rx433LineUp = micros(); // line went HIGH after being LOW at this time  
-        LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time    
-                                              //dauer = micros();
-        isPulseSync = (LowVal > KW9010_SYNC - KW9010_GLITCH && LowVal < KW9010_SYNC + KW9010_GLITCH);
+        rx433LineUp = micros(); // line went HIGH, after being LOW at this time  
+        LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time                                                 
+        isPulseSync = (LowVal > KW9010_SYNC - KW9010_GLITCH && LowVal < KW9010_SYNC + KW9010_SYNC_GLITCH);
         isPulseForHigh = (LowVal > KW9010_ONE - KW9010_GLITCH && LowVal < KW9010_ONE + KW9010_GLITCH);
         isPulseForLow = (LowVal > KW9010_ZERO - KW9010_GLITCH && LowVal < KW9010_ZERO + KW9010_GLITCH);
         isPulseUndef = !(isPulseForHigh || isPulseForLow || isPulseSync);
@@ -297,28 +323,20 @@ void rx433Handler2()
         if (isPulseSync)
         {
             bitsCounted = 0;
-            p.raw = 0ULL;
-            raw = 0;
-            //if (startCondition = true)
-                printf("\n* %d", startCondition);
+            //if (startCondition)
+            //printf("\n*");
             digitalWrite(DEBUG_4_PIN, HIGH);
             lastPulseWasSync = true; 
         }
         else if (isPulseForHigh)
-        {
-            //if (bitsCounted <= 42)
-            p.raw |= 2 ^ (bitsCounted);
-            raw = raw | 2 ^ (42 - bitsCounted);      //raw | 2^bitsCounted; 
-                                                     //printf("X: %d - %u \n",bitsCounted ,2^(42-bitsCounted)); 
-                                                     //populateBitArray(bitsCounted,HIGH);                          
+        {                                                                                                                   
             bitsCounted++;
             digitalWrite(DEBUG_1_PIN, HIGH);
-
             //printf("[H] %d ", bitsCounted);
-            printf("[H] %d ", startCondition);
-            if (startCondition == true)
-                printf("1");
-
+            //printf("H%d ", startCondition);
+            //if (startCondition)
+            //    printf("1");
+            sFIFO.enqueue(1);
             lastPulseWasSync = false;
         }
         else if (isPulseForLow)
@@ -329,9 +347,10 @@ void rx433Handler2()
             digitalWrite(DEBUG_1_PIN, HIGH);
             
             //printf("[L] %d ", bitsCounted);
-            printf("[L] %d ", startCondition);
-            if (startCondition)
-                printf("0");
+            //printf("L%d ", startCondition);
+            //if (startCondition)
+            //    printf("0");
+            sFIFO.enqueue(0);
 
             lastPulseWasSync = false;
         }
@@ -347,7 +366,7 @@ void rx433Handler2()
             
             lastPulseWasSync = false;
             startCondition = false; 
-            cntSync = 0;
+            cntSync = 0;            
         }
 
         if (lastPulseWasSync)
@@ -356,7 +375,7 @@ void rx433Handler2()
             if (cntSync > 11)
             {
                 startCondition = true;                
-                printf("Sync: %d [S] %d   \n", cntSync, startCondition);
+                printf("\nSync: %d [S] %d   \n", cntSync, startCondition);
             }
         }
         else
@@ -367,19 +386,29 @@ void rx433Handler2()
 
         if ( bitsCounted >= (KW9010_MESSAGELEN) ) // all bits received
         {
-            digitalWrite(12, HIGH);
+            digitalWrite(12, HIGH);  //LED external pin12 on
+            
             printf("\tCount[M]: %d\n", bitsCounted);
+            
             bitsCounted = 0;
+            
             p.raw = 0LL;
             raw = 0;
+            
             startCondition = false;
             cntSync = 0;
+
             digitalWrite(DEBUG_3_PIN, HIGH);
 
+            flagReady = true; 
+            
 
 
-            //printf("RAW: %u \t| RAW: %u \t| ID: %d \t| BAT: %d \t| CHAN: %d \t| TEMP: %d \t| HUM: %d \t| CRC: %d \n",raw, p.raw, p.d.id, p.d.bat, p.d.chan, p.d.temp, p.d.hum, p.d.crc );            
-/*
+
+
+ /*
+            printf("RAW: %u \t| RAW: %u \t| ID: %d \t| BAT: %d \t| CHAN: %d \t| TEMP: %d \t| HUM: %d \t| CRC: %d \n",raw, p.raw, p.d.id, p.d.bat, p.d.chan, p.d.temp, p.d.hum, p.d.crc );            
+
             uint64_t ll = p.raw;
             uint64_t xx = ll / 1000000000ULL;
             printf("p.raw: ");
