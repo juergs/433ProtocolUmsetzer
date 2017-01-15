@@ -1,57 +1,58 @@
 /* *********************************************************
 
- Purpose: 
- ========
-        Transforn 42Bit Protocol to LaCrosse-Format 
-    
+Purpose:
+========
+Transforn 42Bit Protocol to LaCrosse-Format
+
 Initial: 20170114_juergs.
 
 Credentials:
-    http://helmpcb.com/software/reading-writing-structs-floats-and-other-objects-to-eeprom
+http://helmpcb.com/software/reading-writing-structs-floats-and-other-objects-to-eeprom
+https://github.com/jacobsax/bitArray-library-for-Arduino
+https://github.com/RFD-FHEM/RFFHEM
+protocol-definition: https://docs.google.com/document/d/121ZH3omAZsdhFi3GSB-YdnasMjIQSGIcaS7QW6KsACA/mobilebasic?pli=1
+https://forum.arduino.cc/index.php?topic=136836.75
+Antenna:
+http://www.mikrocontroller.net/articles/433_MHz_Funk%C3%BCbertragung
+
+
+Printf-Formats:
+==============
+%d %i	Decimal signed integer.
+%o	    Octal integer.
+%x %X	Hex integer.
+%u	    Unsigned integer.
+%c	    Character.
+%s	    String.	siehe unten.
+%f	    double
+%e %E	double.
+%g %G	double.
+%p	    pointer.
+%n	    Number of characters written by this printf. No argument expected.
+%%	%.  No argument expected.
+
+from: http://home.fhtw-berlin.de/~junghans/cref/FUNCTIONS/format.html
+
+Basis + Decoding: Arduino sketch to receive NC7427 temperature/humidity RF sensor telegrams
+Written by 'jurs' for German Arduino Forum: 
     https://github.com/jacobsax/bitArray-library-for-Arduino
-    https://github.com/RFD-FHEM/RFFHEM
-    protocol-definition: https://docs.google.com/document/d/121ZH3omAZsdhFi3GSB-YdnasMjIQSGIcaS7QW6KsACA/mobilebasic?pli=1
-    https://forum.arduino.cc/index.php?topic=136836.75
-    Antenna:
-    http://www.mikrocontroller.net/articles/433_MHz_Funk%C3%BCbertragung
 
-
-    Printf-Formats: 
-    ==============
-    %d %i	Decimal signed integer.
-    %o	    Octal integer.
-    %x %X	Hex integer.
-    %u	    Unsigned integer.
-    %c	    Character.
-    %s	    String.	siehe unten.
-    %f	    double
-    %e %E	double.
-    %g %G	double.
-    %p	    pointer.
-    %n	    Number of characters written by this printf. No argument expected.
-    %%	%.  No argument expected.
-
-    from: http://home.fhtw-berlin.de/~junghans/cref/FUNCTIONS/format.html
-
-    
 ********************************************************* */
 
-#include "fifo.h"
 
 /*
-*
-* typedef union {
-byte byteval[4];
-long longval;
+typedef union 
+{
+    byte byteval[4];
+    long longval;
 } LongBytes;
 LongBytes myVal;
 
-You can then access:
-myVal.longval = 4893723284;
-And also:
-myVal.byteval[i];
-
-where i is 0-3.
+    You can then access:
+        myVal.longval = 4893723284;
+    And also:
+        myVal.byteval[i];
+    where i is 0-3.
 */
 
 //C:\Users\Jürgen\Documents\GitHub\42Bit_Protocol
@@ -62,27 +63,26 @@ where i is 0-3.
 #define DEBUG_4_PIN   8
 #define DEBUG_5_PIN   7
 
-// Arduino sketch to receive KW9010 temperature/humidity RF sensor telegrams
-// Written by 'jurs' for German Arduino Forum
-//https://github.com/jacobsax/bitArray-library-for-Arduino
+
+
 #include <bitArray.h> //byte-wide only!
 
 #define RX433DATA 2       // receive pin for hardware interrupts
 #define RX433INTERRUPT 0  // interrupt number for receive pin
 
-#define KW9010_SYNC   8000    // length in µs of starting pulse
-#define KW9010_SYNC_GLITCH 1000     // pulse length variation for ONE and ZERO pulses
-#define KW9010_ONE    4000     // length in µs of ONE pulse
-#define KW9010_ZERO   2000    // length in µs of ZERO pulse
-#define KW9010_GLITCH 250     // pulse length variation for ONE and ZERO pulses
-#define KW9010_MESSAGELEN 42 //36  // number of bits in one message
+#define NC7427_SYNC         8000    // length in µs of starting pulse
+#define NC7427_SYNC_GLITCH  1100    // pulse length variation for ONE and ZERO pulses
+#define NC7427_ONE          4000    // length in µs of ONE pulse
+#define NC7427_ZERO         2000    // length in µs of ZERO pulse
+#define NC7427_GLITCH        400    // pulse length variation for ONE and ZERO pulses, was 350
+#define NC7427_MESSAGELEN     42    //36, number of bits in one message
 
 #define FIFOSIZE 100  // Fifo Buffer size 8 can hold up to 7 items
 
 volatile unsigned long fifoBuf[FIFOSIZE]; // ring buffer, war long 
 
 volatile byte fifoReadIndex, fifoWriteIndex;  // read and write index into ring buffer
-volatile boolean flagReady = false; 
+volatile boolean flagReady = false;
 
 
 FILE      serial_stdout;          // needed for printf 
@@ -91,6 +91,10 @@ bitArray  proto;
 
 volatile unsigned long long raw;
 
+static byte             buf[NC7427_MESSAGELEN];
+
+
+
 union p
 {
     unsigned long long raw;
@@ -98,42 +102,25 @@ union p
     {
         unsigned long dummy : 22;
         byte lead : 2;
-        byte id   : 8;
-        byte bat  : 2;
+        byte id : 8;
+        byte bat : 2;
         byte chan : 2;
         unsigned short temp : 12;
-        byte hum  : 8;
-        byte crc  : 8;
+        byte hum : 8;
+        byte crc : 8;
     } d;
 } p;
 
-union pd
+typedef union 
 {
     unsigned long long raw;
-    struct
-    {
-        byte b0;
-        byte b1;
-        byte b2;
-        byte b3;
-        byte b4;
-        byte b5;
-        byte b6;
-        byte b7;
-    } d;
-} ptst;
+    byte byteval[8];
+} container;
 
-SimpleFIFO<uint8_t, FIFOSIZE> sFIFO; //store 8 bytes
+    
+container protocol;
 
 
-                           /*
-bitArray  proto1;
-bitArray  proto2;
-bitArray  proto3;
-bitArray  proto4;
-bitArray  proto5;
-bitArray  proto6;
-*/
 void    printResults(unsigned long value);
 boolean crcValid(unsigned long value, byte checksum);
 //void  rx433Handler();
@@ -187,10 +174,10 @@ void setup()
     Serial.println(F("12345678901234567890123456789012345678901234567890 \n"));
     //                  000000000000000000000000000000000000000000
 
-    
- /*
+
+    /*
     p.raw = 61186399307584ULL;
- 
+
     printf("1101111010011000010001100110001000011101000000\n");
     printf("61186399307584\n");
     printf("0x37A6119887400\n");
@@ -198,7 +185,7 @@ void setup()
     // Serial.print("TEST2: "); Serial.println((unsigned long long)p.raw,8);
     Serial.println("Internal: ");
     printLLNumber(p.raw,8);
-    
+
     Serial.println();
 
     Serial.println("Internal: ");
@@ -225,7 +212,7 @@ void setup()
     xx = ll/1000000000ULL;
     if (xx >0) Serial.print((long)xx);
     Serial.println((long)(ll-xx*1000000000));
-    
+
 
     uint64_t pipe = 0x12345ABCD9LL;//lets assume  the data is 12345ABCD9 hexadecimal
     char buf[50];
@@ -240,73 +227,129 @@ void setup()
 
     */
 
-    Serial.println("#############");
+    Serial.println("===============================================================");
 }
 //-------------------------------------------------------------
 void loop()
-{
-    /*
-    if (fifoAvailable())
-    {
-
-    unsigned long dataReceived=fifoRead();
-    Serial.print(millis()/1000);
-    if (dataReceived!=0)
-    {
-    Serial.print(F("\tOK\t"));
-    printBits(sizeof(dataReceived),&dataReceived);
-    //Serial.println("");
-    printResults(dataReceived);
-    }
-    else
-    Serial.print(F("\tFAIL"));
-    Serial.println();
-    }
-    */
-
+{    
 
     if (flagReady)
     {
-        noInterrupts(); 
-        //printf("F: %d \n", sFIFO.count());
-        //Serial.println(F("         1         2         3         4         5"));
-        //Serial.println(F("12345678901234567890123456789012345678901234567890 \n"));
-        for (int i = 0; i < sFIFO.count(); i++)
+        noInterrupts();
+
+        //--- debug flag 
+        digitalWrite(DEBUG_2_PIN, HIGH);
+        
+        //printf("OUT:");
+        printf("\n------------------------------------------------------------\n");
+        //p.d.lead = p.d.bat = p.d.chan = p.d.temp = p.d.hum = p.d.crc = 0; 
+        p.raw = 0ULL; 
+        for (int i = 1; i <= NC7427_MESSAGELEN; i++)
         {
-            printf("%d", sFIFO.dequeue()); 
-            
-            //Serial.print(F("Dequeue "));
-            //Serial.println(sFIFO.dequeue());
+
+            switch (i - 1)
+            {
+            case 2:
+            case 10:
+            case 12:
+            case 14:
+            case 26:
+            case 34:
+                printf(" | ");
+                printf("%d", buf[i]);
+                break;
+            default:
+                printf("%d", buf[i]);
+
+            }
         }
+        printf("\n------------------------------------------------------------\n");
+        for (int i = 1; i <= NC7427_MESSAGELEN; i++)
+        {
+            
+            byte n = i-1 ; 
+
+            if (n > 0 && n <= 2)
+            {
+                p.d.lead |= (buf[i] == 1) ? 2 ^ (i) : 0;
+                printf ("[%2d] LEAD:\t%d - %d\n",n ,p.d.lead , buf[i]);
+            }
+            else if (n > 2 && n <= 10)
+            {             
+                p.d.id |= (buf[i] == 1) ? 2 ^ (i - 3) : 0;
+                printf("[%2d] ID:\t%d - %d\n", n, p.d.id, buf[i]);
+            }
+            else if (n > 10 && n <= 12)
+            {
+                p.d.bat |= (buf[i] == 1) ? 2 ^ (i - 11) : 0;
+                printf("[%2d] BAT:\t%d - %d\n",n, p.d.bat, buf[i]);
+            }
+            else if (n > 12 && n <= 14)
+            {             
+                p.d.chan |= (buf[i] == 1) ? 2 ^ (i - 12) : 0;
+                printf("[%2d] CH:\t%d - %d\n",n , p.d.chan, buf[i]);
+            }
+            else if (n > 14 && n <= 26)
+            {
+                p.d.temp |= (buf[i] == 1) ? 2 ^ (i - 15) : 0;
+                printf("[%2d] T:\t\t%d - %d\n",n , p.d.temp, buf[i]);
+            }
+            else if (n > 26 && n <= 34)
+            {                
+                p.d.hum |= (buf[i] == 1) ? 2^(i-27) : 0;
+                printf("[%2d] H:\t\t%d - %d\n", n, p.d.hum, buf[i]);
+            }
+            else if (n > 34 )
+            {                
+                p.d.crc |= (buf[i]==1) ? 2^(i-35) : 0;
+                printf("[%2d] CRC:\t%d - %d\n", n, p.d.crc, buf[i]);
+            };
+            
+        }
+
         printf("\n");
-        flagReady = false; 
-        sFIFO.flush();
-        interrupts(); 
+        flagReady = false;
+        digitalWrite(DEBUG_2_PIN, LOW);
+
+        printf("\n------------------------------\n");
+        printf("ld:\t%d\n", p.d.lead);
+        printf("id:\t%d\n", p.d.id);
+        printf("bat:\t%d\n", p.d.bat);
+        printf("ch:\t%d\n", p.d.chan);
+        printf("temp:\t%d\n", p.d.temp);
+        printf("hum:\t%d\n", p.d.hum);
+        printf("crc:\t%d\n", p.d.hum);
+
+        uint64_t ll = p.raw;
+        uint64_t xx = ll / 1000000000ULL;
+
+        printf("Raw:\t");
+        if (xx >0) Serial.print((long)xx);
+            Serial.print((long)(ll - xx * 1000000000));
+            Serial.println();
+
+        interrupts();        
     }
-    //else
-    //    printf("F: %d \n", sFIFO.count());
-
-    //delay(10000); 
-
 }
 
 
 //-------------------------------------------------------------
 void rx433Handler2()
-{
-    static long           rx433LineUp, rx433LineDown;
-    static unsigned long  rxBits = 0;
-    static byte           crcBits = 0;
-    volatile static byte    bitsCounted = 0;
+{    
+    static long             rx433LineUp, rx433LineDown;
+    static unsigned long    rxBits = 0;
+    static byte             crcBits = 0;
+    volatile static byte    cnt = 0;
     volatile static byte    cntSync = 0;
-    volatile static boolean startCondition = false;
-    volatile static boolean lastPulseWasSync = false;
-    long                  LowVal, HighVal;
-    unsigned long         dauer, timestamp;
-    boolean               isPulseForHigh = false;
-    boolean               isPulseForLow = false;
-    boolean               isPulseSync = false;
-    boolean               isPulseUndef = false;
+    volatile static byte    frameCnt = 0;
+    static volatile boolean startCondition = false;
+    static volatile boolean lastPulseWasSync = false;
+    long                    LowVal, HighVal;
+    unsigned long           dauer, timestamp;
+    boolean                 isPulseForHigh = false;
+    boolean                 isPulseForLow = false;
+    boolean                 isPulseSync = false;
+    boolean                 isPulseUndef = false;
 
     byte rx433State = digitalRead(RX433DATA); // current pin state
 
@@ -314,100 +357,102 @@ void rx433Handler2()
     {
         rx433LineUp = micros(); // line went HIGH, after being LOW at this time  
         LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time                                                 
-        isPulseSync = (LowVal > KW9010_SYNC - KW9010_GLITCH && LowVal < KW9010_SYNC + KW9010_SYNC_GLITCH);
-        isPulseForHigh = (LowVal > KW9010_ONE - KW9010_GLITCH && LowVal < KW9010_ONE + KW9010_GLITCH);
-        isPulseForLow = (LowVal > KW9010_ZERO - KW9010_GLITCH && LowVal < KW9010_ZERO + KW9010_GLITCH);
+        isPulseSync = (LowVal > NC7427_SYNC - NC7427_GLITCH && LowVal < NC7427_SYNC + NC7427_SYNC_GLITCH);
+        isPulseForHigh = (LowVal > NC7427_ONE - NC7427_GLITCH && LowVal < NC7427_ONE + NC7427_GLITCH);
+        isPulseForLow = (LowVal > NC7427_ZERO - NC7427_GLITCH && LowVal < NC7427_ZERO + NC7427_GLITCH);
         isPulseUndef = !(isPulseForHigh || isPulseForLow || isPulseSync);
-        //--- uncritical: insgesamt 51uS fuer diese Berechnungen
+        //--- uncritical: 51uS for this calcs only
 
         if (isPulseSync)
         {
-            bitsCounted = 0;
-            //if (startCondition)
-            //printf("\n*");
+            cnt = 0;
+            
+            //if (startCondition) 
+            //    printf("\n*\n");
             digitalWrite(DEBUG_4_PIN, HIGH);
-            lastPulseWasSync = true; 
+            lastPulseWasSync = true;
         }
         else if (isPulseForHigh)
-        {                                                                                                                   
-            bitsCounted++;
+        {
+            cnt++;
             digitalWrite(DEBUG_1_PIN, HIGH);
-            //printf("[H] %d ", bitsCounted);
+            //printf("[H] %d ", cnt);
             //printf("H%d ", startCondition);
-            //if (startCondition)
-            //    printf("1");
-            sFIFO.enqueue(1);
+            //if (startCondition) 
+            if (cnt <= NC7427_MESSAGELEN)
+                buf[cnt] = 1; 
+            
+            //printf("1 - %d - %d\n", cnt,  buf[cnt]);
+            //sFIFO.enqueue(1);
+            
             lastPulseWasSync = false;
         }
         else if (isPulseForLow)
-        {
-            //populateBitArray(bitsCounted,LOW);                
-            bitsCounted++;
-            digitalWrite(DEBUG_2_PIN, HIGH);
+        {            
+            cnt++;
+
+            //
             digitalWrite(DEBUG_1_PIN, HIGH);
-            
-            //printf("[L] %d ", bitsCounted);
+
+            if (cnt <= NC7427_MESSAGELEN)
+                buf[cnt] = 0;
+
+            //printf("[L] %d ", cnt);
             //printf("L%d ", startCondition);
-            //if (startCondition)
-            //    printf("0");
-            sFIFO.enqueue(0);
+            //if (startCondition) 
+            
+            //printf("0 - %d - %d\n", cnt, buf[cnt]);
+            
+            //sFIFO.enqueue(0);
 
             lastPulseWasSync = false;
         }
         else if (isPulseUndef)
         {
-            bitsCounted = 0;
-            p.raw = 0;
-            raw = 0;
-            
+            cnt = 0;
             digitalWrite(DEBUG_5_PIN, HIGH);
-            
-            //printf("\n ");
-            
             lastPulseWasSync = false;
-            startCondition = false; 
-            cntSync = 0;            
+            startCondition = false;
+            cntSync = 0;
+            //frameCnt = 0; 
+            //printf("#\n");
         }
 
+        // trigger on start pulses, 
+        // in our case this NCS protocol has 13 start frames with 8000uS..9000uS lentgh 
         if (lastPulseWasSync)
         {
-            cntSync++; 
+            cntSync++;
             if (cntSync > 11)
             {
-                startCondition = true;                
-                printf("\nSync: %d [S] %d   \n", cntSync, startCondition);
+                startCondition = true;
+                frameCnt = 0;
+                printf("~\n");   // flags first frame after start sequence 
+                //printf("\nSync: %d [S] %d   \n", cntSync, startCondition);
             }
         }
         else
-        { 
+        {
             //startCondition = false; 
-            cntSync = 0; 
+            cntSync = 0;
         }
 
-        if ( bitsCounted >= (KW9010_MESSAGELEN) ) // all bits received
+        if (cnt >= (NC7427_MESSAGELEN)) // all bits received
         {
             digitalWrite(12, HIGH);  //LED external pin12 on
-            
-            printf("\tCount[M]: %d\n", bitsCounted);
-            
-            bitsCounted = 0;
-            
-            p.raw = 0LL;
-            raw = 0;
-            
-            startCondition = false;
+
+            frameCnt++; 
+            //printf("\tCount[M]: %d\n", cnt);
+            printf("[%d]:", frameCnt);
+            cnt = 0;            
             cntSync = 0;
 
             digitalWrite(DEBUG_3_PIN, HIGH);
 
-            flagReady = true; 
-            
+            flagReady = true;
 
-
-
-
- /*
-            printf("RAW: %u \t| RAW: %u \t| ID: %d \t| BAT: %d \t| CHAN: %d \t| TEMP: %d \t| HUM: %d \t| CRC: %d \n",raw, p.raw, p.d.id, p.d.bat, p.d.chan, p.d.temp, p.d.hum, p.d.crc );            
+            /*
+            printf("RAW: %u \t| RAW: %u \t| ID: %d \t| BAT: %d \t| CHAN: %d \t| TEMP: %d \t| HUM: %d \t| CRC: %d \n",raw, p.raw, p.d.id, p.d.bat, p.d.chan, p.d.temp, p.d.hum, p.d.crc );
 
             uint64_t ll = p.raw;
             uint64_t xx = ll / 1000000000ULL;
@@ -415,32 +460,32 @@ void rx433Handler2()
             if (xx >0) Serial.print((long)xx);
             Serial.print((long)(ll - xx * 1000000000));
             Serial.print("  - ");
-*/
+            */
 
-/*
+            /*
             ll = raw;
             xx = ll / 1000000000ULL;
             printf("raw: ");
             if (xx >0) Serial.print((long)xx);
             Serial.println((long)(ll - xx * 1000000000));
-*/
+            */
+
             /*
             for (int i=0; i<42; i++)
             Serial.print(readBitArray(i));
             Serial.println("");
             */
-            
 
             /*
-            //noInterrupts(); 
+            //noInterrupts();
             unsigned long start_time = micros();
             unsigned long duration = (10 * 1000 * 1000);
             while ((micros() - start_time) < duration );
             {
-                // wait 10 uS for display on Loganalyzer - delay not functional?
-                ;
-            }            
-            //interrupts(); 
+            // wait 10 uS for display on Loganalyzer - delay not functional?
+            ;
+            }
+            //interrupts();
             */
         }
     }
@@ -517,7 +562,7 @@ static long           rx433LineUp, rx433LineDown;
 static unsigned long  rxBits=0;
 static unsigned long  rxBits_2=0;
 static byte           crcBits=0;
-static byte           bitsCounted=0;
+static byte           cnt=0;
 long                  LowVal, HighVal;
 
 byte rx433State = digitalRead(RX433DATA); // current pin state
@@ -527,48 +572,48 @@ rx433LineUp = micros(); // line went HIGH after being LOW at this time
 
 LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time
 
-if (LowVal>KW9010_SYNC-2*KW9010_GLITCH && LowVal<KW9010_SYNC+2*KW9010_GLITCH)
+if (LowVal>NC7427_SYNC-2*NC7427_GLITCH && LowVal<NC7427_SYNC+2*NC7427_GLITCH)
 {
 rxBits=0;
 rxBits_2 = 0;
 crcBits=0;
-bitsCounted=0;
+cnt=0;
 }
-else if (LowVal>KW9010_ONE-KW9010_GLITCH && LowVal<KW9010_ONE+KW9010_GLITCH)
+else if (LowVal>NC7427_ONE-NC7427_GLITCH && LowVal<NC7427_ONE+NC7427_GLITCH)
 {
 // set the one bits, war 32  = ulong size !
-if (bitsCounted<32)
+if (cnt<32)
 {
-bitSet(rxBits,bitsCounted);
-printf("bitsCounted %d - rxBits: %d \n",bitsCounted,rxBits);
+bitSet(rxBits,cnt);
+printf("cnt %d - rxBits: %d \n",cnt,rxBits);
 }
 else
 {
-bitSet(crcBits, bitsCounted-32);
-printf("bitsCounted %d - crcBits: %d \n",bitsCounted,crcBits);
+bitSet(crcBits, cnt-32);
+printf("cnt %d - crcBits: %d \n",cnt,crcBits);
 }
-if (bitsCounted >= 32)
+if (cnt >= 32)
 {
-bitSet(rxBits_2,bitsCounted);
-printf("bitsCounted %d - rxBits_2: %d \n",bitsCounted,rxBits_2);
+bitSet(rxBits_2,cnt);
+printf("cnt %d - rxBits_2: %d \n",cnt,rxBits_2);
 }
-bitsCounted++;
+cnt++;
 }
-else if (LowVal>KW9010_ZERO-KW9010_GLITCH && LowVal<KW9010_ZERO+KW9010_GLITCH)
+else if (LowVal>NC7427_ZERO-NC7427_GLITCH && LowVal<NC7427_ZERO+NC7427_GLITCH)
 { // setting zero bits is not necessary, but count them
-bitsCounted++;
+cnt++;
 }
 else // received bit is not a SYNC, ONE or ZERO bit, so restart
 {
 rxBits=0;
 rxBits_2=0;
 crcBits=0;
-bitsCounted=0;
+cnt=0;
 }
-if (bitsCounted>=KW9010_MESSAGELEN) // all bits received
+if (cnt>=NC7427_MESSAGELEN) // all bits received
 {
 digitalWrite(12,HIGH);
-printf("Bit counted: %d\n",bitsCounted);
+printf("Bit counted: %d\n",cnt);
 
 fifoWrite(rxBits); // write valid value to FIFO buffer
 
@@ -579,7 +624,7 @@ fifoWrite(rxBits); // write valid value to FIFO buffer
 
 rxBits=0;
 crcBits=0;
-bitsCounted=0;
+cnt=0;
 
 
 }
@@ -594,62 +639,62 @@ HighVal = rx433LineDown - rx433LineUp; // calculate the HIGH pulse time
 */
 
 //-------------------------------------------------------------
-/*
+/* rxhandler old
 void rx433Handler_fifo()
 {
-    static long rx433LineUp, rx433LineDown;
-    static unsigned long rxBits = 0;
-    static byte crcBits = 0;
-    static byte bitsCounted = 0;
-    long LowVal, HighVal;
-    byte rx433State = digitalRead(RX433DATA); // current pin state
-    if (rx433State) // pin is now HIGH
-    {
-        rx433LineUp = micros(); // line went HIGH after being LOW at this time
-        LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time
-        if (LowVal>KW9010_SYNC - 2 * KW9010_GLITCH && LowVal<KW9010_SYNC + 2 * KW9010_GLITCH)
-        {
-            rxBits = 0;
-            crcBits = 0;
-            bitsCounted = 0;
-        }
-        else if (LowVal>KW9010_ONE - KW9010_GLITCH && LowVal<KW9010_ONE + KW9010_GLITCH)
-        { // set the one bits
-            if (bitsCounted<32)
-                bitSet(rxBits, bitsCounted);
-            else
-                bitSet(crcBits, bitsCounted - 32);
-            bitsCounted++;
-        }
-        else if (LowVal>KW9010_ZERO - KW9010_GLITCH && LowVal<KW9010_ZERO + KW9010_GLITCH)
-        { // setting zero bits is not necessary, but count them
-            bitsCounted++;
-        }
-        else // received bit is not a SYNC, ONE or ZERO bit, so restart
-        {
-            rxBits = 0;
-            crcBits = 0;
-            bitsCounted = 0;
-        }
-        if (bitsCounted >= KW9010_MESSAGELEN) // all bits received
-        {
-            if (crcValid(rxBits, crcBits))
-                fifoWrite(rxBits); // write valid value to FIFO buffer
-            else
-                fifoWrite(0);  // write 0 to FIFO buffer (0 = invalid value received)
-
-            rxBits = 0;
-            crcBits = 0;
-            bitsCounted = 0;
-        }
-    }
-    else
-    { // High values have no information with them
-        rx433LineDown = micros(); // line went LOW after being HIGH
-        HighVal = rx433LineDown - rx433LineUp; // calculate the HIGH pulse time
-    }
+static long rx433LineUp, rx433LineDown;
+static unsigned long rxBits = 0;
+static byte crcBits = 0;
+static byte cnt = 0;
+long LowVal, HighVal;
+byte rx433State = digitalRead(RX433DATA); // current pin state
+if (rx433State) // pin is now HIGH
+{
+rx433LineUp = micros(); // line went HIGH after being LOW at this time
+LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time
+if (LowVal>NC7427_SYNC - 2 * NC7427_GLITCH && LowVal<NC7427_SYNC + 2 * NC7427_GLITCH)
+{
+rxBits = 0;
+crcBits = 0;
+cnt = 0;
 }
-*/ 
+else if (LowVal>NC7427_ONE - NC7427_GLITCH && LowVal<NC7427_ONE + NC7427_GLITCH)
+{ // set the one bits
+if (cnt<32)
+bitSet(rxBits, cnt);
+else
+bitSet(crcBits, cnt - 32);
+cnt++;
+}
+else if (LowVal>NC7427_ZERO - NC7427_GLITCH && LowVal<NC7427_ZERO + NC7427_GLITCH)
+{ // setting zero bits is not necessary, but count them
+cnt++;
+}
+else // received bit is not a SYNC, ONE or ZERO bit, so restart
+{
+rxBits = 0;
+crcBits = 0;
+cnt = 0;
+}
+if (cnt >= NC7427_MESSAGELEN) // all bits received
+{
+if (crcValid(rxBits, crcBits))
+fifoWrite(rxBits); // write valid value to FIFO buffer
+else
+fifoWrite(0);  // write 0 to FIFO buffer (0 = invalid value received)
+
+rxBits = 0;
+crcBits = 0;
+cnt = 0;
+}
+}
+else
+{ // High values have no information with them
+rx433LineDown = micros(); // line went LOW after being HIGH
+HighVal = rx433LineDown - rx433LineUp; // calculate the HIGH pulse time
+}
+}
+*/
 
 //-------------------------------------------------------------
 void fifoWrite(long item)

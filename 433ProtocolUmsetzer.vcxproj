@@ -80,7 +80,6 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="fifo.h" />
     <ClInclude Include="__vm\.433ProtocolUmsetzer.vsarduino.h" />
   </ItemGroup>
   <PropertyGroup>
