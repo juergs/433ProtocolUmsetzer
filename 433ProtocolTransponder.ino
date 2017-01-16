@@ -73,9 +73,13 @@ LongBytes myVal;
 #define NC7427_GLITCH        400    // pulse length variation for ONE and ZERO pulses, was 350
 #define NC7427_MESSAGELEN     42    //36, number of bits in one message
 
-union p
+union
 {
     unsigned long long raw;
+    struct
+    {
+        byte raw_byt[8];
+    } b;
     struct
     {
         unsigned long dummy : 22;
@@ -169,8 +173,8 @@ void loop()
         digitalWrite(DEBUG_2_PIN, HIGH);
         
         printf("\n------------------------------------------------------------\n");
-        //p.d.lead = p.d.bat = p.d.chan = p.d.temp = p.d.hum = p.d.crc = 0; 
-        p.raw = 0ULL; 
+        
+        p.raw = 0; 
         for (int i = 1; i <= NC7427_MESSAGELEN; i++)
         {
 
@@ -197,38 +201,52 @@ void loop()
 
             if (n > 0 && n <= 2)
             {
-                p.d.lead |= (buf[i] == 1) ? 2 ^ (i) : 0;
-                printf ("[%2d] LEAD:\t%d - %d\n",n ,p.d.lead , buf[i]);
+                p.d.lead += (buf[i] == 1) ? 1<<i : 0;
+                printf ("[%2d] LEAD:\t%8d - %d",n ,p.d.lead , buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
+                Serial.println(); 
             }
             else if (n > 2 && n <= 10)
             {             
-                p.d.id |= (buf[i] == 1) ? 2 ^ (i - 3) : 0;
-                printf("[%2d] ID:\t%d - %d\n", n, p.d.id, buf[i]);
+                p.d.id |= (buf[i] == 1) ? 1<<(i - 3) : 0;
+                printf("[%2d] ID:\t%8d - %d", n, p.d.id, buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                Serial.println();
             }
             else if (n > 10 && n <= 12)
             {
-                p.d.bat |= (buf[i] == 1) ? 2 ^ (i - 11) : 0;
-                printf("[%2d] BAT:\t%d - %d\n",n, p.d.bat, buf[i]);
+                p.d.bat |= (buf[i] == 1) ? 1<<(i - 11) : 0;
+                printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                Serial.println();
             }
             else if (n > 12 && n <= 14)
             {             
-                p.d.chan |= (buf[i] == 1) ? 2 ^ (i - 12) : 0;
-                printf("[%2d] CH:\t%d - %d\n",n , p.d.chan, buf[i]);
+                p.d.chan |= (buf[i] == 1) ? 1<<(i - 12) : 0;
+                printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                Serial.println();
             }
             else if (n > 14 && n <= 26)
             {
-                p.d.temp |= (buf[i] == 1) ? 2 ^ (i - 15) : 0;
-                printf("[%2d] T:\t\t%d - %d\n",n , p.d.temp, buf[i]);
+                p.d.temp |= (buf[i] == 1) ? 1<<(i - 15) : 0;
+                printf("[%2d] T:\t\t%8d - %d",n , p.d.temp, buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                Serial.println();
             }
             else if (n > 26 && n <= 34)
             {                
-                p.d.hum |= (buf[i] == 1) ? 2^(i-27) : 0;
-                printf("[%2d] H:\t\t%d - %d\n", n, p.d.hum, buf[i]);
+                p.d.hum |= (buf[i] == 1) ? 1<<(i-27) : 0;
+                printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                Serial.println();
             }
             else if (n > 34 )
             {                
-                p.d.crc |= (buf[i]==1) ? 2^(i-35) : 0;
-                printf("[%2d] CRC:\t%d - %d\n", n, p.d.crc, buf[i]);
+                p.d.crc |= (buf[i]==1) ? 1<<(i-35) : 0;
+                printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
+                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                Serial.println();
             };
             
         }
@@ -279,10 +297,10 @@ void rx433Handler2()
     {
         rx433LineUp = micros(); // line went HIGH, after being LOW at this time  
         LowVal = rx433LineUp - rx433LineDown; // calculate the LOW pulse time                                                 
-        isPulseSync = (LowVal > NC7427_SYNC - NC7427_GLITCH && LowVal < NC7427_SYNC + NC7427_SYNC_GLITCH);
-        isPulseForHigh = (LowVal > NC7427_ONE - NC7427_GLITCH && LowVal < NC7427_ONE + NC7427_GLITCH);
-        isPulseForLow = (LowVal > NC7427_ZERO - NC7427_GLITCH && LowVal < NC7427_ZERO + NC7427_GLITCH);
-        isPulseUndef = !(isPulseForHigh || isPulseForLow || isPulseSync);
+        isPulseSync    = (LowVal > NC7427_SYNC - NC7427_GLITCH && LowVal < NC7427_SYNC + NC7427_SYNC_GLITCH);
+        isPulseForHigh = (LowVal > NC7427_ONE - NC7427_GLITCH  && LowVal < NC7427_ONE  + NC7427_GLITCH);
+        isPulseForLow  = (LowVal > NC7427_ZERO - NC7427_GLITCH && LowVal < NC7427_ZERO + NC7427_GLITCH);
+        isPulseUndef   = !(isPulseForHigh || isPulseForLow || isPulseSync);
         //--- uncritical: 51uS for this calcs only
 
         if (isPulseSync)
