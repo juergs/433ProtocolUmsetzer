@@ -73,14 +73,14 @@ LongBytes myVal;
 #define NC7427_GLITCH        400    // pulse length variation for ONE and ZERO pulses, was 350
 #define NC7427_MESSAGELEN     42    //36, number of bits in one message
 
-union
+union proto_union
 {
     unsigned long long raw;
     struct
     {
         byte raw_byt[8];
     } b;
-    struct
+    struct proto_struct
     {
         unsigned long dummy : 22;
         byte lead : 2;
@@ -375,7 +375,7 @@ void rx433Handler2()
 
     while (micros() - start_time < 10);
     {
-        // wait 10 uS for display on Loganalyzer
+        // wait 10 uS displaytime on Loganalyzer
         ;
     }
 
