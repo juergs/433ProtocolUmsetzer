@@ -15,6 +15,10 @@ protocol-definition:
     https://forum.arduino.cc/index.php?topic=136836.75
 Antenna:
     http://www.mikrocontroller.net/articles/433_MHz_Funk%C3%BCbertragung
+Helpers:
+    http://graphics.stanford.edu/~seander/bithacks.html
+    http://www.geeksforgeeks.org/memory-layout-of-c-program/
+
 
 
 Printf-Formats:
@@ -40,6 +44,9 @@ Written by 'jurs' for German Arduino Forum:
 
     where: C:\Users\Jürgen\Documents\GitHub\42Bit_Protocol
 ********************************************************* */
+
+#include <limits.h>
+
 
 /*
 typedef union 
@@ -101,10 +108,15 @@ typedef union
 
 //======================================================================
 volatile boolean flagReady = false;
+
 FILE serial_stdout;                             // needed for printf 
+
 volatile unsigned long long raw;
-static byte buf[NC7427_MESSAGELEN];
+
+volatile byte buf[NC7427_MESSAGELEN];
+
 container   protocol;
+
 //======================================================================
 void    printResults(unsigned long value);
 boolean crcValid(unsigned long value, byte checksum);
@@ -112,6 +124,8 @@ void    rx433Handler2();
 int     freeRam();
 void    printBits(size_t const size, void const * const ptr);
 int     serial_putchar(char c, FILE* f);
+unsigned short reverseBits(unsigned short number); 
+void swapArrayBinPos(byte first, byte last);
 //======================================================================
 
 //-------------------------------------------------------------
@@ -145,9 +159,9 @@ void setup()
     digitalWrite(DEBUG_5_PIN, LOW);
 
     Serial.println("===============================================================");
-    Serial.println();
-    Serial.print(F("Free RAM: ")); Serial.println(freeRam());
-    Serial.println();
+    //Serial.println();
+    Serial.print(F("\tFree RAM: ")); Serial.println(freeRam());
+    //Serial.println();
     Serial.println("===============================================================");
 
    /* 64Bit sample:
@@ -171,96 +185,233 @@ void loop()
 
         //--- debug flag 
         digitalWrite(DEBUG_2_PIN, HIGH);
+      
+        printf("\n---------------------------------------------------------------------------------------\n");       
+        printf("0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 \n");
+        for (int i = 0; i < NC7427_MESSAGELEN; i++)
+        {
+            printf("%d ", buf[i]);
+        }
+        printf("\n---------------------------------------------------------------------------------------\n");
+        printf("    01      23456789       01      23        456789012345       67890123       456789012345 \n");
+        printf("---------------------------------------------------------------------------------------\n");
         
-        printf("\n------------------------------------------------------------\n");
-        
+
         p.raw = 0; 
-        for (int i = 1; i <= NC7427_MESSAGELEN; i++)
+
+        //buf[1] = 1; // test
+
+        for (int i = 0; i < NC7427_MESSAGELEN; i++)
         {
 
-            switch (i - 1)
+            switch (i)
             {
+
+                case 0:
+                    printf("LD: ");
+                    break;
                 case 2:
+                    printf(" |ID: ");
+                    break;
                 case 10:
+                    printf(" |BAT: ");
+                    break;
                 case 12:
+                    printf(" |CH: ");
+                    break;
                 case 14:
+                    printf(" |TEMP: ");
+                    break;
                 case 26:
+                    printf(" |HUM: ");
+                    break;
                 case 34:
-                    printf(" | ");
-                    printf("%d", buf[i]);
+                    printf(" |CRC: ");
                     break;
                 default:
-                    printf("%d", buf[i]);
+                    break; 
             }
+            printf("%d", buf[i]);
+
         }
-        printf("\n------------------------------------------------------------\n");
-        for (int i = 1; i <= NC7427_MESSAGELEN; i++)
+        
+        //--- temperatur bitpos: 14..25 swappen
+        //swapArrayBinPos(14, 25); 
+
+        #define FIRST 14
+        #define LAST  25
+        byte tmp = 0;
+        byte idx = 0;
+        puts(""); 
+        for (byte i = LAST; i >= FIRST; i--)
         {
-            
-            byte n = i-1 ; 
+            idx = FIRST + (LAST - i);
+            printf("V: i=%d \t idx: %d \t buf: %d \n",i , idx, buf[i]);
+            tmp = buf[i];
+            //printf("tmp: %d \n", tmp);
+            buf[i] = buf[idx];
+            //printf("buf[idx]: %d \n", buf[idx]);
+            buf[idx] = tmp;
+            //printf("buf[idx]: %d \n", buf[idx]);
+            printf("N: i=%d \t idx: %d \t buf: %d \n", i, idx, buf[i]);
+        };
 
-            if (n > 0 && n <= 2)
+
+        printf("\n---------------------------------------------------------------------------------------\n");
+        for (int i = 0; i < NC7427_MESSAGELEN; i++)
+        {
+
+            switch (i)
             {
-                p.d.lead += (buf[i] == 1) ? 1<<i : 0;
-                printf ("[%2d] LEAD:\t%8d - %d",n ,p.d.lead , buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
-                Serial.println(); 
+
+            case 0:
+                printf("LD: ");
+                break;
+            case 2:
+                printf(" |ID: ");
+                break;
+            case 10:
+                printf(" |BAT: ");
+                break;
+            case 12:
+                printf(" |CH: ");
+                break;
+            case 14:
+                printf(" |TEMP: ");
+                break;
+            case 26:
+                printf(" |HUM: ");
+                break;
+            case 34:
+                printf(" |CRC: ");
+                break;
+            default:
+                break;
             }
-            else if (n > 2 && n <= 10)
-            {             
-                p.d.id |= (buf[i] == 1) ? 1<<(i - 3) : 0;
-                printf("[%2d] ID:\t%8d - %d", n, p.d.id, buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                Serial.println();
-            }
-            else if (n > 10 && n <= 12)
-            {
-                p.d.bat |= (buf[i] == 1) ? 1<<(i - 11) : 0;
-                printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                Serial.println();
-            }
-            else if (n > 12 && n <= 14)
-            {             
-                p.d.chan |= (buf[i] == 1) ? 1<<(i - 12) : 0;
-                printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                Serial.println();
-            }
-            else if (n > 14 && n <= 26)
-            {
-                p.d.temp |= (buf[i] == 1) ? 1<<(i - 15) : 0;
-                printf("[%2d] T:\t\t%8d - %d",n , p.d.temp, buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                Serial.println();
-            }
-            else if (n > 26 && n <= 34)
-            {                
-                p.d.hum |= (buf[i] == 1) ? 1<<(i-27) : 0;
-                printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                Serial.println();
-            }
-            else if (n > 34 )
-            {                
-                p.d.crc |= (buf[i]==1) ? 1<<(i-35) : 0;
-                printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
-                printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                Serial.println();
-            };
-            
+            printf("%d", buf[i]);
+
         }
 
-        printf("\n");
+
+/*
+        printf("\n------------------------------------------------------------\n");
+        for (int i = 0; i < NC7427_MESSAGELEN; i++)
+        {
+
+            switch (i)
+            {
+            case 2:
+            case 11:
+            case 13:
+            case 15:
+            case 27:
+            case 35:
+                printf(" | ");
+                break;
+            default:
+                break;
+            }
+            printf("%d", buf[i]);
+
+        }
+ */
+ //       if (false) 
+ //       {
+                        
+            
+            printf("\n---------------------------------------------------------------------------------------\n");
+            for (int i = 0; i < NC7427_MESSAGELEN; i++)
+            {
+            
+                byte n = i ; 
+
+                if ( n < 2)
+                {
+                    p.d.lead += (buf[i] == 1) ? 1<<i : 0;
+                    //printf ("[%2d] LEAD:\t%8d - %d\t",n ,p.d.lead , buf[i]);                           
+                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
+                    //printBits(sizeof(p.b.raw_byt[0] ), &p.b.raw_byt[0]);
+                    //Serial.println(); 
+                }
+                else if (n >= 2 && n < 10)
+                {             
+                    p.d.id |= (buf[i] == 1) ? 1<<(i - 3) : 0;
+                    //printf("[%2d] ID:\t%8d - %d\t", n, p.d.id, buf[i]);
+                    //printBits(sizeof(p.d.id), &p.d.id);
+                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                    //Serial.println();
+                }
+                else if (n >= 10 && n < 12)
+                {
+                    p.d.bat |= (buf[i] == 1) ? 1<<(i - 11) : 0;
+                    //printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
+                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                    //Serial.println();
+                }
+                else if (n >= 12 && n < 14)
+                {             
+                    p.d.chan |= (buf[i] == 1) ? 1<<(i - 12) : 0;
+                    //printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
+                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                    //Serial.println();
+                }
+                else if (n >= 14 && n < 26)
+                {
+                    p.d.temp |= (buf[i] == 1) ? 1<<(i - 15) : 0;
+                    printf("[%2d] T:\t\t%8d - %d  0x%X",n , p.d.temp, buf[i], p.d.temp);
+                    ///printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                    Serial.println();
+                }
+                else if (n >= 26 && n < 34)
+                {                
+                    p.d.hum |= (buf[i] == 1) ? 1<<(i-27) : 0;
+                    //printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
+                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                    //Serial.println();
+                }
+                else if (n >= 34 )
+                {                
+                    p.d.crc |= (buf[i]==1) ? 1<<(i-35) : 0;
+                    //printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
+                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                    //Serial.println();
+                };
+            
+            }
+            //printf("\n");
+  //      }
+
+        
         flagReady = false;
         digitalWrite(DEBUG_2_PIN, LOW);
 
-        printf("\n------------------------------\n");
+        printf("------------------------------------------------------------\n");
+
         printf("ld:\t%d\n", p.d.lead);
         printf("id:\t%d\n", p.d.id);
         printf("bat:\t%d\n", p.d.bat);
         printf("ch:\t%d\n", p.d.chan);
-        printf("temp:\t%d\n", p.d.temp);
+        unsigned short theta = (unsigned short) p.d.temp; // 12 auf 16 bit !  
+        printf("temp (union):\t 0x%X ", p.d.temp); printf("\t"); printBits(sizeof(theta), &theta);
+
+        //////////////////////////////////////////////////////////////////
+        //unsigned short theta = (unsigned short)p.d.temp; 
+        //unsigned short thetaRev = reverseBits(theta);        
+        //unsigned short theta = p.d.temp;
+        unsigned short thetaRev = theta >> 4; 
+        thetaRev = reverseBits(p.d.temp);
+               
+        
+        printf("temp(theta):\t 0x%X \n", p.d.temp); printf("\t"); printBits(sizeof(theta), &theta); printf("\t"); printBits(sizeof(thetaRev), &thetaRev);
+        
+        p.d.temp = thetaRev; 
+        printf("tempRev :\t 0x%X \n", p.d.temp);
+        printf("thetaRev:\t 0x%X \n", thetaRev>>4); printf("\t"); printBits(sizeof(thetaRev), &thetaRev);
+        
+        
+        //////////////////////////////////////////////////////////////////
+        
+        
         printf("hum:\t%d\n", p.d.hum);
         printf("crc:\t%d\n", p.d.hum);
 
@@ -311,21 +462,23 @@ void rx433Handler2()
             lastPulseWasSync = true;
         }
         else if (isPulseForHigh)
-        {
-            cnt++;
+        {           
             digitalWrite(DEBUG_1_PIN, HIGH);                
             if (cnt <= NC7427_MESSAGELEN)
                 buf[cnt] = 1; 
+            
+            cnt++;
 
             lastPulseWasSync = false;
         }
         else if (isPulseForLow)
         {            
-            cnt++;
             digitalWrite(DEBUG_1_PIN, HIGH);            
             if (cnt <= NC7427_MESSAGELEN)
                 buf[cnt] = 0;            
             
+            cnt++;
+
             lastPulseWasSync = false;
         }
         else if (isPulseUndef)
@@ -407,7 +560,7 @@ void printBits(size_t const size, void const * const ptr)
             printf("%u", byte);
         }
     }
-    puts("");
+    puts("");  // inkl. CRLF
 }
 //-------------------------------------------------------------
 //--- function that printf and related will use to print
@@ -457,6 +610,39 @@ boolean crcValid(unsigned long value, byte checksum)
 }
 
 //-------------------------------------------------------------
+void swapArrayBinPos(byte first, byte last)
+{
+    byte tmp = 0; 
+    byte idx = 0; 
+    for (byte i = last; i <= first; i--)
+    {
+        idx = first + (last - i);
+        tmp      = buf[i];
+        buf[i]   = buf[idx]; 
+        buf[idx] = tmp; 
+    }
+}
+
+//-------------------------------------------------------------
+unsigned short reverseBits(unsigned short number)
+{
+    //Reverse bits the obvious way
+
+    unsigned short v = number;     // input bits to be reversed
+    unsigned short r = v;          // r will be reversed bits of v; first get LSB of v
+    int s = sizeof(number) * CHAR_BIT - 1; // extra shift needed at end
+
+    for (v >>= 1; v; v >>= 1)
+    {
+        r <<= 1;
+        r |= v & 1;
+        s--;
+    }
+    r <<= s; // shift when v's highest bits are zero
+
+    return r; 
+
+}
 
 //==================================================================
 // <eof>
