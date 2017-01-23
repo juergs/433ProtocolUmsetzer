@@ -18,6 +18,7 @@ Antenna:
 Helpers:
     http://graphics.stanford.edu/~seander/bithacks.html
     http://www.geeksforgeeks.org/memory-layout-of-c-program/
+    http://www.geeksforgeeks.org/bit-fields-c/
 
 
 
@@ -90,13 +91,13 @@ union proto_union
     struct proto_struct
     {
         unsigned long dummy : 22;
-        byte lead : 2;
-        byte id : 8;
-        byte bat : 2;
-        byte chan : 2;
+        byte lead   : 2;
+        byte id     : 8;
+        byte bat    : 2;
+        byte chan   : 2;
         unsigned short temp : 12;
-        byte hum : 8;
-        byte crc : 8;
+        byte hum    : 8;
+        byte crc    : 8;
     } d;
 } p;
 
@@ -235,29 +236,13 @@ void loop()
 
         }
         
-        //--- temperatur bitpos: 14..25 swappen
-        //swapArrayBinPos(14, 25); 
+        //--- prepare temperatur bitpos swappen
+        swapArrayBinPos(25, 14);
+        
+        //--- prepare hum bitpos swappen
+        swapArrayBinPos(33, 26);
 
-        #define FIRST 14
-        #define LAST  25
-        byte tmp = 0;
-        byte idx = 0;
-        puts(""); 
-        for (byte i = LAST; i >= FIRST; i--)
-        {
-            idx = FIRST + (LAST - i);
-            printf("V: i=%d \t idx: %d \t buf: %d \n",i , idx, buf[i]);
-            tmp = buf[i];
-            //printf("tmp: %d \n", tmp);
-            buf[i] = buf[idx];
-            //printf("buf[idx]: %d \n", buf[idx]);
-            buf[idx] = tmp;
-            //printf("buf[idx]: %d \n", buf[idx]);
-            printf("N: i=%d \t idx: %d \t buf: %d \n", i, idx, buf[i]);
-        };
-
-
-        printf("\n---------------------------------------------------------------------------------------\n");
+        printf("\n----swaped-----------------------------------------------------------------------------\n");
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
         {
 
@@ -328,32 +313,32 @@ void loop()
                 if ( n < 2)
                 {
                     p.d.lead += (buf[i] == 1) ? 1<<i : 0;
-                    //printf ("[%2d] LEAD:\t%8d - %d\t",n ,p.d.lead , buf[i]);                           
+                    printf ("[%2d] LEAD:\t%8d - %d\t",n ,p.d.lead , buf[i]);                           
                     //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
                     //printBits(sizeof(p.b.raw_byt[0] ), &p.b.raw_byt[0]);
-                    //Serial.println(); 
+                    Serial.println(); 
                 }
                 else if (n >= 2 && n < 10)
                 {             
                     p.d.id |= (buf[i] == 1) ? 1<<(i - 3) : 0;
-                    //printf("[%2d] ID:\t%8d - %d\t", n, p.d.id, buf[i]);
+                    printf("[%2d] ID:\t%8d - %d\t", n, p.d.id, buf[i]);
                     //printBits(sizeof(p.d.id), &p.d.id);
                     //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
+                    Serial.println();
                 }
                 else if (n >= 10 && n < 12)
                 {
                     p.d.bat |= (buf[i] == 1) ? 1<<(i - 11) : 0;
-                    //printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
+                    printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
                     //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
+                    Serial.println();
                 }
                 else if (n >= 12 && n < 14)
                 {             
                     p.d.chan |= (buf[i] == 1) ? 1<<(i - 12) : 0;
-                    //printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
+                    printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
                     //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
+                    Serial.println();
                 }
                 else if (n >= 14 && n < 26)
                 {
@@ -365,16 +350,16 @@ void loop()
                 else if (n >= 26 && n < 34)
                 {                
                     p.d.hum |= (buf[i] == 1) ? 1<<(i-27) : 0;
-                    //printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
+                    printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
                     //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
+                    Serial.println();
                 }
                 else if (n >= 34 )
                 {                
                     p.d.crc |= (buf[i]==1) ? 1<<(i-35) : 0;
-                    //printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
+                    printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
                     //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
+                    Serial.println();
                 };
             
             }
@@ -391,22 +376,33 @@ void loop()
         printf("id:\t%d\n", p.d.id);
         printf("bat:\t%d\n", p.d.bat);
         printf("ch:\t%d\n", p.d.chan);
-        unsigned short theta = (unsigned short) p.d.temp; // 12 auf 16 bit !  
-        printf("temp (union):\t 0x%X ", p.d.temp); printf("\t"); printBits(sizeof(theta), &theta);
+        //unsigned short theta = (unsigned short) p.d.temp; // 12 auf 16 bit !  
+        
+        printf("temp (union):\t 0x%X \n", p.d.temp); //printf("\t"); printBits(sizeof(p.d.temp), &p.d.temp);
+        printf("temp (LLL):\t 0x%X \n", p.d.temp & 0b111100000000); 
+        printf("temp (MMM):\t 0x%X \n", p.d.temp & 0b000011110000); 
+        printf("temp (HHH):\t 0x%X \n", p.d.temp & 0b000000001111); 
+        puts("");
+        uint16_t tbits = (uint16_t)p.d.temp<<1; // TODO ls-bit fehlt noch, deshalb einmal links schieben!  0x19B 110011011, sollte temp (bits):	0000001100110110 sein
+        printf("tbits:\t 0x%X \n", tbits );
+        printf("temp (LLL):\t 0x%X \n", tbits & 0b111100000000);
+        printf("temp (MMM):\t 0x%X \n", tbits & 0b000011110000);
+        printf("temp (HHH):\t 0x%X \n", tbits & 0b000000001111);
+        printf("temp (bits):\t", p.d.temp & 0b000000001111);  printBits(sizeof(tbits), &tbits); puts("");
 
         //////////////////////////////////////////////////////////////////
         //unsigned short theta = (unsigned short)p.d.temp; 
         //unsigned short thetaRev = reverseBits(theta);        
         //unsigned short theta = p.d.temp;
-        unsigned short thetaRev = theta >> 4; 
-        thetaRev = reverseBits(p.d.temp);
+       // unsigned short thetaRev = theta >> 4; 
+       // thetaRev = reverseBits(p.d.temp);
                
         
-        printf("temp(theta):\t 0x%X \n", p.d.temp); printf("\t"); printBits(sizeof(theta), &theta); printf("\t"); printBits(sizeof(thetaRev), &thetaRev);
+       // printf("temp(theta):\t 0x%X \n", p.d.temp); printf("\t"); printBits(sizeof(theta), &theta); printf("\t"); printBits(sizeof(thetaRev), &thetaRev);
         
-        p.d.temp = thetaRev; 
-        printf("tempRev :\t 0x%X \n", p.d.temp);
-        printf("thetaRev:\t 0x%X \n", thetaRev>>4); printf("\t"); printBits(sizeof(thetaRev), &thetaRev);
+        //p.d.temp = thetaRev; 
+        //printf("tempRev :\t 0x%X \n", p.d.temp);
+        //printf("thetaRev:\t 0x%X \n", thetaRev>>4); printf("\t"); printBits(sizeof(thetaRev), &thetaRev);
         
         
         //////////////////////////////////////////////////////////////////
@@ -610,19 +606,24 @@ boolean crcValid(unsigned long value, byte checksum)
 }
 
 //-------------------------------------------------------------
-void swapArrayBinPos(byte first, byte last)
+void swapArrayBinPos(byte last, byte first)
 {
-    byte tmp = 0; 
-    byte idx = 0; 
-    for (byte i = last; i <= first; i--)
+    byte buf2[NC7427_MESSAGELEN];
+    byte tmp = 0;
+    byte idx = 0;
+    
+    for (byte n = first; n <= last; n++)
+    {
+        buf2[n] = buf[n];
+    }
+    
+    for (byte i = first; i <= last; i++)
     {
         idx = first + (last - i);
-        tmp      = buf[i];
-        buf[i]   = buf[idx]; 
-        buf[idx] = tmp; 
+        buf[i] = buf2[idx]; 
+        //printf("buf_i: %d %t buf_idx: %d\n", buf[i], buf2[idx]);
     }
 }
-
 //-------------------------------------------------------------
 unsigned short reverseBits(unsigned short number)
 {
