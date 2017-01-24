@@ -179,23 +179,26 @@ void setup()
 }
 //-------------------------------------------------------------
 void loop()
-{    
+{        
     if (flagReady)
-    {
+    {    
+        //--- 85 ms duration, blocks one following protocol 
+
         noInterrupts();
 
-        //--- debug flag 
+        //--- debug flag - 
         digitalWrite(DEBUG_2_PIN, HIGH);
       
-        printf("\n---------------------------------------------------------------------------------------\n");       
+        printf("\n------------------------------------------------------------------------------------------\n");       
         printf("0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 \n");
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
         {
             printf("%d ", buf[i]);
         }
-        printf("\n---------------------------------------------------------------------------------------\n");
-        printf("    01      23456789       01      23        456789012345       67890123       456789012345 \n");
-        printf("----raw--------------------------------------------------------------------------------\n");
+        printf("\n------------------------------------------------------------------------------------------\n");
+        printf("    00      00000000       11      11        111111222222       22223333       33333344 \n");
+        printf("    01      23456789       01      23        456789012345       67890123       45678901 \n");
+        printf("----[raw]---------------------------------------------------------------------------------\n");
         
 
         p.raw = 0; 
@@ -204,10 +207,8 @@ void loop()
 
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
         {
-
             switch (i)
             {
-
                 case 0:
                     printf("LD: ");
                     break;
@@ -233,112 +234,84 @@ void loop()
                     break; 
             }
             printf("%d", buf[i]);
-
         }
         
-        //--- prepare temperatur bitpos swappen
+        //--- bit sequence is recorded in right order, but due to endianess of avr-gcc bitorder must be swapped.
+        //--- temperature bitpos swapping.
         swapArrayBinPos(25, 14);
         
-        //--- prepare hum bitpos swappen
+        //--- humidity bitpos swapping
         swapArrayBinPos(33, 26);
 
-        printf("\n----swaped-----------------------------------------------------------------------------\n");
+        printf("\n----[swapped]--------------------------------------------------------------------------\n");
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
         {
-
             switch (i)
             {
-
-            case 0:
-                printf("LD: ");
-                break;
-            case 2:
-                printf(" |ID: ");
-                break;
-            case 10:
-                printf(" |BAT: ");
-                break;
-            case 12:
-                printf(" |CH: ");
-                break;
-            case 14:
-                printf(" |TEMP: ");
-                break;
-            case 26:
-                printf(" |HUM: ");
-                break;
-            case 34:
-                printf(" |CRC: ");
-                break;
-            default:
-                break;
+                case 0:
+                    printf("LD: ");
+                    break;
+                case 2:
+                    printf(" |ID: ");
+                    break;
+                case 10:
+                    printf(" |BAT: ");
+                    break;
+                case 12:
+                    printf(" |CH: ");
+                    break;
+                case 14:
+                    printf(" |TEMP: ");
+                    break;
+                case 26:
+                    printf(" |HUM: ");
+                    break;
+                case 34:
+                    printf(" |CRC: ");
+                    break;
+                default:
+                    break;
             }
             printf("%d", buf[i]);
-
         }
             
         printf("\n---------------------------------------------------------------------------------------\n");
+
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
-        {
-            
+        {            
             byte n = i ; 
 
             if ( n < 2)
             {
-                p.d.lead += (buf[i] == 1) ? 1<<i : 0;
-                //printf ("[%2d] LEAD:\t%8d - %d\t",n ,p.d.lead , buf[i]);                           
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
-                //printBits(sizeof(p.b.raw_byt[0] ), &p.b.raw_byt[0]);
-                //Serial.println(); 
+                p.d.lead += (buf[i] == 1) ? 1<<i : 0;            
             }
             else if (n >= 2 && n < 10)
             {             
-                p.d.id |= (buf[i] == 1) ? 1<<(i-2) : 0;  
-                //printf("[%2d] ID:\t%8d - %d\t", n, p.d.id, buf[i]);
-                //printBits(sizeof(p.d.id), &p.d.id);
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                //Serial.println();
+                p.d.id |= (buf[i] == 1) ? 1<<(i-2) : 0;                  
             }
             else if (n >= 10 && n < 12)
             {
-                p.d.bat |= (buf[i] == 1) ? 1<<(i-10) : 0;  
-                //printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                //Serial.println();
+                p.d.bat |= (buf[i] == 1) ? 1<<(i-10) : 0;
             }
             else if (n >= 12 && n < 14)
             {             
                 p.d.chan |= (buf[i] == 1) ? 1<<(i-12) : 0; 
-                //printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                //Serial.println();
             }
             else if (n >= 14 && n < 26)
             {
                 p.d.temp |= (buf[i] == 1) ? 1<<(i-14) : 0; 
-                //printf("[%2d] T:\t\t%8d - %d  0x%X",n , p.d.temp, buf[i], p.d.temp);
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                //Serial.println();
             }
             else if (n >= 26 && n < 34)
             {                
                 p.d.hum |= (buf[i] == 1) ? 1<<(i-26) : 0;  
-                //printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                //Serial.println();
             }
             else if (n >= 34 )
             {                
                 p.d.crc |= (buf[i]==1) ? 1<<(i-34) : 0;  
-                //printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
-                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                //Serial.println();
             };
             
         }
-         
-        flagReady = false;        
-        
+                                 
         //--- report readings 
         printf("ld:\t%d\n", p.d.lead);
         printf("id:\t%d\n", p.d.id);
@@ -396,7 +369,9 @@ void loop()
         
         digitalWrite(DEBUG_2_PIN, LOW);
 
-        interrupts();        
+        flagReady = false;
+        
+        interrupts();            
     }
 }
 //-------------------------------------------------------------
