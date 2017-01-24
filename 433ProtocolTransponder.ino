@@ -195,7 +195,7 @@ void loop()
         }
         printf("\n---------------------------------------------------------------------------------------\n");
         printf("    01      23456789       01      23        456789012345       67890123       456789012345 \n");
-        printf("---------------------------------------------------------------------------------------\n");
+        printf("----raw--------------------------------------------------------------------------------\n");
         
 
         p.raw = 0; 
@@ -276,82 +276,73 @@ void loop()
             printf("%d", buf[i]);
 
         }
-
- //       if (false) 
- //       {
-                        
             
-            printf("\n---------------------------------------------------------------------------------------\n");
-            for (int i = 0; i < NC7427_MESSAGELEN; i++)
+        printf("\n---------------------------------------------------------------------------------------\n");
+        for (int i = 0; i < NC7427_MESSAGELEN; i++)
+        {
+            
+            byte n = i ; 
+
+            if ( n < 2)
             {
-            
-                byte n = i ; 
-
-                if ( n < 2)
-                {
-                    p.d.lead += (buf[i] == 1) ? 1<<i : 0;
-                    //printf ("[%2d] LEAD:\t%8d - %d\t",n ,p.d.lead , buf[i]);                           
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
-                    //printBits(sizeof(p.b.raw_byt[0] ), &p.b.raw_byt[0]);
-                    //Serial.println(); 
-                }
-                else if (n >= 2 && n < 10)
-                {             
-                    p.d.id |= (buf[i] == 1) ? 1<<(i - 2) : 0;  // war 3
-                    //printf("[%2d] ID:\t%8d - %d\t", n, p.d.id, buf[i]);
-                    //printBits(sizeof(p.d.id), &p.d.id);
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
-                }
-                else if (n >= 10 && n < 12)
-                {
-                    p.d.bat |= (buf[i] == 1) ? 1<<(i - 10) : 0;  // war 11
-                    //printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
-                }
-                else if (n >= 12 && n < 14)
-                {             
-                    p.d.chan |= (buf[i] == 1) ? 1<<(i - 12) : 0; // war 12
-                    //printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
-                }
-                else if (n >= 14 && n < 26)
-                {
-                    p.d.temp |= (buf[i] == 1) ? 1<<(i - 14) : 0; // war 15 
-                    //printf("[%2d] T:\t\t%8d - %d  0x%X",n , p.d.temp, buf[i], p.d.temp);
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
-                }
-                else if (n >= 26 && n < 34)
-                {                
-                    p.d.hum |= (buf[i] == 1) ? 1<<(i-26) : 0;  // war 27 
-                    //printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
-                }
-                else if (n >= 34 )
-                {                
-                    p.d.crc |= (buf[i]==1) ? 1<<(i-34) : 0;  // war 35
-                    //printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
-                    //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
-                    //Serial.println();
-                };
-            
+                p.d.lead += (buf[i] == 1) ? 1<<i : 0;
+                //printf ("[%2d] LEAD:\t%8d - %d\t",n ,p.d.lead , buf[i]);                           
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw); 
+                //printBits(sizeof(p.b.raw_byt[0] ), &p.b.raw_byt[0]);
+                //Serial.println(); 
             }
-            //printf("\n");
-  //      }
-
+            else if (n >= 2 && n < 10)
+            {             
+                p.d.id |= (buf[i] == 1) ? 1<<(i-2) : 0;  
+                //printf("[%2d] ID:\t%8d - %d\t", n, p.d.id, buf[i]);
+                //printBits(sizeof(p.d.id), &p.d.id);
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                //Serial.println();
+            }
+            else if (n >= 10 && n < 12)
+            {
+                p.d.bat |= (buf[i] == 1) ? 1<<(i-10) : 0;  
+                //printf("[%2d] BAT:\t%8d - %d",n, p.d.bat, buf[i]);
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                //Serial.println();
+            }
+            else if (n >= 12 && n < 14)
+            {             
+                p.d.chan |= (buf[i] == 1) ? 1<<(i-12) : 0; 
+                //printf("[%2d] CH:\t%8d - %d",n , p.d.chan, buf[i]);
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                //Serial.println();
+            }
+            else if (n >= 14 && n < 26)
+            {
+                p.d.temp |= (buf[i] == 1) ? 1<<(i-14) : 0; 
+                //printf("[%2d] T:\t\t%8d - %d  0x%X",n , p.d.temp, buf[i], p.d.temp);
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                //Serial.println();
+            }
+            else if (n >= 26 && n < 34)
+            {                
+                p.d.hum |= (buf[i] == 1) ? 1<<(i-26) : 0;  
+                //printf("[%2d] H:\t\t%8d - %d", n, p.d.hum, buf[i]);
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                //Serial.println();
+            }
+            else if (n >= 34 )
+            {                
+                p.d.crc |= (buf[i]==1) ? 1<<(i-34) : 0;  
+                //printf("[%2d] CRC:\t%8d - %d", n, p.d.crc, buf[i]);
+                //printf("\traw: %u = ", p.raw); printBits(sizeof(p.raw), &p.raw);
+                //Serial.println();
+            };
+            
+        }
+         
+        flagReady = false;        
         
-        flagReady = false;
-        digitalWrite(DEBUG_2_PIN, LOW);
-
-        
-
+        //--- report readings 
         printf("ld:\t%d\n", p.d.lead);
         printf("id:\t%d\n", p.d.id);
-        printf("id_c:\t%d\n", p.d.id & 127); //-- skip upper bit to fit in LaCrosse-Id (max): 127
+        printf("id_c:\t%d\n", p.d.id & 127); //-- skip upper id-bit to fit in LaCrosse-Id (max): 127 allowed. 
         printf("bat:\t%d\n", p.d.bat);
         printf("ch:\t%d\n", p.d.chan);
 
@@ -365,17 +356,14 @@ void loop()
                        
         //////////////////////////////////////////////////////////////////        
         //--- temperature, juggling bitpositions  (;-(( 
-        //-- ther might be a better solution, this one works. 
-        
-        uint16_t tbits = (uint16_t)p.d.temp; 
-        
-        uint16_t tbitsL = (tbits & 0b111100000000) >> 8;
-        
-        uint16_t tbitsM = tbits & 0b000011110000;
-        
-        uint16_t tbitsH = (tbits & 0b000000001111) << 8;
-        
-        uint16_t tempF = (tbitsH + tbitsM + tbitsL);   // join nibbles       
+        //--- there might be a better solution, this one works. 
+        //////////////////////////////////////////////////////////////////        
+
+        uint16_t tbits = (uint16_t)p.d.temp;         
+        uint16_t tbitsL = (tbits & 0b111100000000) >> 8;        
+        uint16_t tbitsM = tbits & 0b000011110000;        
+        uint16_t tbitsH = (tbits & 0b000000001111) << 8;        
+        uint16_t tempF = (tbitsH + tbitsM + tbitsL);        //--- join inversed nibbles       
         
         //////////////////////////////////////////////////////////////////        
         
@@ -387,13 +375,15 @@ void loop()
         //////////////////////////////////////////////////////////////////        
         
         printf("tempF:\t 0x%X \n", tempF);
-        printf("tempC:\t"); Serial.println(tempC);         
+        printf("tempC:\t "); Serial.println(tempC);         
         
         //////////////////////////////////////////////////////////////////                
+        
         printf("hum:\t%d\n", p.d.hum);
         printf("crc:\t%d\n", p.d.crc);
 
-/*      uint64_t ll = p.raw;
+/*      // is 64bit int
+        uint64_t ll = p.raw;
         uint64_t xx = ll / 1000000000ULL;
 
         printf("Raw:\t");
@@ -401,8 +391,11 @@ void loop()
             Serial.print((long)(ll - xx * 1000000000));
             Serial.println();
 */
+
         printf("------------------------------------------------------------\n");
         
+        digitalWrite(DEBUG_2_PIN, LOW);
+
         interrupts();        
     }
 }
