@@ -237,11 +237,21 @@ void loop()
         }
         
         //--- bit sequence is recorded in right order, but due to endianess of avr-gcc bitorder must be swapped.
+        
+        //--- id bitpos swapping.
+        swapArrayBinPos(9, 2);
+        
+        //--- ch bitpos swapping.
+        swapArrayBinPos(13, 12);
+
         //--- temperature bitpos swapping.
         swapArrayBinPos(25, 14);
         
         //--- humidity bitpos swapping
         swapArrayBinPos(33, 26);
+
+        //--- crc bitpos swapping
+        swapArrayBinPos(41, 34);
 
         printf("\n----[swapped]--------------------------------------------------------------------------\n");
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
@@ -341,6 +351,7 @@ void loop()
         //////////////////////////////////////////////////////////////////        
         
         //--- conversion FahrenheitToCelsius => C = (F-32) / 1.8
+        //--- and protocol specific offset
         
         double tempC = (double)tempF - 900; 
         tempC = ((tempC / 10) -32) / 1.8;              
