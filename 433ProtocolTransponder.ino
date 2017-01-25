@@ -147,6 +147,8 @@ void    printNonSwappedBuffer();
 
 void    fillProtocolPattern();
 
+void    printBuffer(); 
+
 //======================================================================
 
 //-------------------------------------------------------------
@@ -208,7 +210,7 @@ void loop()
 
         //--- debug flag - 
         digitalWrite(DEBUG_2_PIN, HIGH);
-      
+ /*     
         printf("\n------------------------------------------------------------------------------------------\n");       
         printf("0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 \n");
         for (int i = 0; i < NC7427_MESSAGELEN; i++)
@@ -219,12 +221,12 @@ void loop()
         printf("    00      00000000       11      11        111111222222       22223333       33333344 \n");
         printf("    01      23456789       01      23        456789012345       67890123       45678901 \n");
         printf("----[raw]---------------------------------------------------------------------------------\n");
-        
+*/     
         p.raw = 0; 
 
         //buf[1] = 1; // test
-
-        printNonSwappedBuffer(); 
+        puts("");
+        //printNonSwappedBuffer(); 
         
         //--- bit sequence is recorded in right order, but due to endianess of avr-gcc bitorder must be swapped.
         
@@ -247,6 +249,9 @@ void loop()
 
         fillProtocolPattern(); 
 
+        printBuffer(); 
+
+
         var = p.raw;
 
         uint8_t ret = BufferIn(var);
@@ -259,17 +264,26 @@ void loop()
         
         interrupts();            
     }
+    else
+    {
+        printBuffer(); 
+        delay(5000);
+    }
 
 }
 //------------------------------------------------------------------------------------------------------
 void printBuffer()
 {
-
+    var = 0; 
     pvar = &var;
 
     uint8_t ret = BufferOut(pvar); 
     if (ret == BUFFER_SUCCESS)
     {
+        //printf("\n------------------------------------------------------------\n");
+
+        printNonSwappedBuffer(); 
+
         // fill data-structure 
         p.raw = var; 
 
@@ -514,7 +528,7 @@ void fillProtocolPattern()
 //-------------------------------------------------------------------------
 void printNonSwappedBuffer()
 {
-
+    printf("\n---------------------------------------------------------------------------------------\n");
     for (int i = 0; i < NC7427_MESSAGELEN; i++)
     {
         switch (i)
@@ -581,6 +595,7 @@ void printSwappedBuffer()
         }
         printf("%d", buf[i]);
     }
+    printf("\n---------------------------------------------------------------------------------------\n");
 }
 //-------------------------------------------------------------
 //--- function that printf and related will use to print
