@@ -47,6 +47,8 @@ Written by 'jurs' for German Arduino Forum:
 ********************************************************* */
 
 #include <limits.h>
+#include <stdint.h>
+#include "fifo_buffer.h"
 
 
 /*
@@ -118,15 +120,33 @@ volatile byte buf[NC7427_MESSAGELEN];
 
 container   protocol;
 
-//======================================================================
+uint64_t var; 
+uint64_t* pvar; 
+
+//====prototypes========================================================
+
 void    printResults(unsigned long value);
+
 boolean crcValid(unsigned long value, byte checksum);
+
 void    rx433Handler2();
+
 int     freeRam();
+
 void    printBits(size_t const size, void const * const ptr);
+
 int     serial_putchar(char c, FILE* f);
+
 unsigned short reverseBits(unsigned short number); 
-void swapArrayBinPos(byte first, byte last);
+
+void    swapArrayBinPos(byte first, byte last);
+
+void    printSwappedBuffer();
+
+void    printNonSwappedBuffer();
+
+void    fillProtocolPattern();
+
 //======================================================================
 
 //-------------------------------------------------------------
@@ -200,41 +220,11 @@ void loop()
         printf("    01      23456789       01      23        456789012345       67890123       45678901 \n");
         printf("----[raw]---------------------------------------------------------------------------------\n");
         
-
         p.raw = 0; 
 
         //buf[1] = 1; // test
 
-        for (int i = 0; i < NC7427_MESSAGELEN; i++)
-        {
-            switch (i)
-            {
-                case 0:
-                    printf("LD: ");
-                    break;
-                case 2:
-                    printf(" |ID: ");
-                    break;
-                case 10:
-                    printf(" |BAT: ");
-                    break;
-                case 12:
-                    printf(" |CH: ");
-                    break;
-                case 14:
-                    printf(" |TEMP: ");
-                    break;
-                case 26:
-                    printf(" |HUM: ");
-                    break;
-                case 34:
-                    printf(" |CRC: ");
-                    break;
-                default:
-                    break; 
-            }
-            printf("%d", buf[i]);
-        }
+        printNonSwappedBuffer(); 
         
         //--- bit sequence is recorded in right order, but due to endianess of avr-gcc bitorder must be swapped.
         
@@ -253,130 +243,15 @@ void loop()
         //--- crc bitpos swapping
         swapArrayBinPos(41, 34);
 
-        printf("\n----[swapped]--------------------------------------------------------------------------\n");
-        for (int i = 0; i < NC7427_MESSAGELEN; i++)
-        {
-            switch (i)
-            {
-                case 0:
-                    printf("LD: ");
-                    break;
-                case 2:
-                    printf(" |ID: ");
-                    break;
-                case 10:
-                    printf(" |BAT: ");
-                    break;
-                case 12:
-                    printf(" |CH: ");
-                    break;
-                case 14:
-                    printf(" |TEMP: ");
-                    break;
-                case 26:
-                    printf(" |HUM: ");
-                    break;
-                case 34:
-                    printf(" |CRC: ");
-                    break;
-                default:
-                    break;
-            }
-            printf("%d", buf[i]);
-        }
-            
-        printf("\n---------------------------------------------------------------------------------------\n");
+        printSwappedBuffer(); 
 
-        for (int i = 0; i < NC7427_MESSAGELEN; i++)
-        {            
-            byte n = i ; 
+        fillProtocolPattern(); 
 
-            if ( n < 2)
-            {
-                p.d.lead += (buf[i] == 1) ? 1<<i : 0;            
-            }
-            else if (n >= 2 && n < 10)
-            {             
-                p.d.id |= (buf[i] == 1) ? 1<<(i-2) : 0;                  
-            }
-            else if (n >= 10 && n < 12)
-            {
-                p.d.bat |= (buf[i] == 1) ? 1<<(i-10) : 0;
-            }
-            else if (n >= 12 && n < 14)
-            {             
-                p.d.chan |= (buf[i] == 1) ? 1<<(i-12) : 0; 
-            }
-            else if (n >= 14 && n < 26)
-            {
-                p.d.temp |= (buf[i] == 1) ? 1<<(i-14) : 0; 
-            }
-            else if (n >= 26 && n < 34)
-            {                
-                p.d.hum |= (buf[i] == 1) ? 1<<(i-26) : 0;  
-            }
-            else if (n >= 34 )
-            {                
-                p.d.crc |= (buf[i]==1) ? 1<<(i-34) : 0;  
-            };
-            
-        }
-                                 
-        //--- report readings 
-        printf("ld:\t%d\n", p.d.lead);
-        printf("id:\t%d\n", p.d.id);
-        printf("id_c:\t%d\n", p.d.id & 127); //-- skip upper id-bit to fit in LaCrosse-Id (max): 127 allowed. 
-        printf("bat:\t%d\n", p.d.bat);
-        printf("ch:\t%d\n", p.d.chan);
+        var = p.raw;
 
-       /*
-        printf("temp (union):\t 0x%X \n", p.d.temp); //printf("\t"); printBits(sizeof(p.d.temp), &p.d.temp);
-        printf("temp (LLL):\t 0x%X \n", p.d.temp & 0b111100000000); 
-        printf("temp (MMM):\t 0x%X \n", p.d.temp & 0b000011110000); 
-        printf("temp (HHH):\t 0x%X \n", p.d.temp & 0b000000001111); 
-        //puts("");
-       */
-                       
-        //////////////////////////////////////////////////////////////////        
-        //--- temperature, juggling bitpositions  (;-(( 
-        //--- there might be a better solution, this one works. 
-        //////////////////////////////////////////////////////////////////        
-
-        uint16_t tbits = (uint16_t)p.d.temp;         
-        uint16_t tbitsL = (tbits & 0b111100000000) >> 8;        
-        uint16_t tbitsM = tbits & 0b000011110000;        
-        uint16_t tbitsH = (tbits & 0b000000001111) << 8;        
-        uint16_t tempF = (tbitsH + tbitsM + tbitsL);        //--- join inversed nibbles       
-        
-        //////////////////////////////////////////////////////////////////        
-        
-        //--- conversion FahrenheitToCelsius => C = (F-32) / 1.8
-        //--- and protocol specific offset
-        
-        double tempC = (double)tempF - 900; 
-        tempC = ((tempC / 10) -32) / 1.8;              
-
-        //////////////////////////////////////////////////////////////////        
-        
-        printf("tempF:\t 0x%X \n", tempF);
-        printf("tempC:\t "); Serial.println(tempC);         
-        
-        //////////////////////////////////////////////////////////////////                
-        
-        printf("hum:\t%d\n", p.d.hum);
-        printf("crc:\t%d\n", p.d.crc);
-
-/*      // is 64bit int
-        uint64_t ll = p.raw;
-        uint64_t xx = ll / 1000000000ULL;
-
-        printf("Raw:\t");
-        if (xx >0) Serial.print((long)xx);
-            Serial.print((long)(ll - xx * 1000000000));
-            Serial.println();
-*/
-
-        printf("------------------------------------------------------------\n");
+        uint8_t ret = BufferIn(var);
+        if (ret == BUFFER_FAIL)
+            printf("Buffer-IN-Error\n");
         
         digitalWrite(DEBUG_2_PIN, LOW);
 
@@ -384,7 +259,84 @@ void loop()
         
         interrupts();            
     }
+
 }
+//------------------------------------------------------------------------------------------------------
+void printBuffer()
+{
+
+    pvar = &var;
+
+    uint8_t ret = BufferOut(pvar); 
+    if (ret == BUFFER_SUCCESS)
+    {
+        // fill data-structure 
+        p.raw = var; 
+
+        //--- report readings 
+        printf("ld:\t%d\n", p.d.lead);
+        printf("id:\t%d\n", p.d.id);
+        printf("id_c:\t%d\n", p.d.id & 127); //-- skip upper id-bit to fit in LaCrosse-Id (max): 127 allowed. 
+        printf("bat:\t%d\n", p.d.bat);
+        printf("ch:\t%d\n", p.d.chan);
+
+        /*
+            printf("temp (union):\t 0x%X \n", p.d.temp); //printf("\t"); printBits(sizeof(p.d.temp), &p.d.temp);
+            printf("temp (LLL):\t 0x%X \n", p.d.temp & 0b111100000000);
+            printf("temp (MMM):\t 0x%X \n", p.d.temp & 0b000011110000);
+            printf("temp (HHH):\t 0x%X \n", p.d.temp & 0b000000001111);
+        //puts("");
+        */
+
+        //////////////////////////////////////////////////////////////////        
+        //--- temperature, juggling bitpositions  (;-(( 
+        //--- there might be a better solution, this one works. 
+        //////////////////////////////////////////////////////////////////        
+
+        uint16_t tbits =  (uint16_t)p.d.temp;
+        uint16_t tbitsL = (tbits & 0b111100000000) >> 8;
+        uint16_t tbitsM = tbits & 0b000011110000;
+        uint16_t tbitsH = (tbits & 0b000000001111) << 8;
+        uint16_t tempF =  (tbitsH + tbitsM + tbitsL);        //--- join inversed nibbles       
+
+        //////////////////////////////////////////////////////////////////        
+
+        //--- conversion FahrenheitToCelsius => C = (F-32) / 1.8
+        //--- other:  °C = map(°F, 32, 212, 0, 100)
+        //--- and protocol specific offset
+
+        double tempC = (double)tempF - 900;
+        tempC = ((tempC / 10) - 32) / 1.8;
+
+        //////////////////////////////////////////////////////////////////        
+
+        printf("tempF:\t 0x%X \n", tempF);
+        printf("tempC:\t "); Serial.println(tempC);
+
+        //////////////////////////////////////////////////////////////////                
+
+        printf("hum:\t%d\n", p.d.hum);
+        printf("crc:\t%d\n", p.d.crc);
+
+        /*      // is 64bit int
+        uint64_t ll = p.raw;
+        uint64_t xx = ll / 1000000000ULL;
+
+        printf("Raw:\t");
+        if (xx >0) Serial.print((long)xx);
+        Serial.print((long)(ll - xx * 1000000000));
+        Serial.println();
+        */
+
+        printf("------------------------------------------------------------\n");
+
+    }
+    else
+    {
+        printf("*** no data. \n");
+    }
+}
+
 //-------------------------------------------------------------
 void rx433Handler2()
 {    
@@ -521,6 +473,115 @@ void printBits(size_t const size, void const * const ptr)
     }
     puts("");  // inkl. CRLF
 }
+//-------------------------------------------------------------------------
+void fillProtocolPattern()
+{
+    for (int i = 0; i < NC7427_MESSAGELEN; i++)
+    {
+        byte n = i;
+
+        if (n < 2)
+        {
+            p.d.lead += (buf[i] == 1) ? 1 << i : 0;
+        }
+        else if (n >= 2 && n < 10)
+        {
+            p.d.id |= (buf[i] == 1) ? 1 << (i - 2) : 0;
+        }
+        else if (n >= 10 && n < 12)
+        {
+            p.d.bat |= (buf[i] == 1) ? 1 << (i - 10) : 0;
+        }
+        else if (n >= 12 && n < 14)
+        {
+            p.d.chan |= (buf[i] == 1) ? 1 << (i - 12) : 0;
+        }
+        else if (n >= 14 && n < 26)
+        {
+            p.d.temp |= (buf[i] == 1) ? 1 << (i - 14) : 0;
+        }
+        else if (n >= 26 && n < 34)
+        {
+            p.d.hum |= (buf[i] == 1) ? 1 << (i - 26) : 0;
+        }
+        else if (n >= 34)
+        {
+            p.d.crc |= (buf[i] == 1) ? 1 << (i - 34) : 0;
+        };
+
+    }
+}
+//-------------------------------------------------------------------------
+void printNonSwappedBuffer()
+{
+
+    for (int i = 0; i < NC7427_MESSAGELEN; i++)
+    {
+        switch (i)
+        {
+        case 0:
+            printf("LD: ");
+            break;
+        case 2:
+            printf(" |ID: ");
+            break;
+        case 10:
+            printf(" |BAT: ");
+            break;
+        case 12:
+            printf(" |CH: ");
+            break;
+        case 14:
+            printf(" |TEMP: ");
+            break;
+        case 26:
+            printf(" |HUM: ");
+            break;
+        case 34:
+            printf(" |CRC: ");
+            break;
+        default:
+            break;
+        }
+        printf("%d", buf[i]);
+    }
+    printf("\n---------------------------------------------------------------------------------------\n");
+}
+//-------------------------------------------------------------------------
+void printSwappedBuffer()
+{
+    printf("\n----[swapped]--------------------------------------------------------------------------\n");
+    for (int i = 0; i < NC7427_MESSAGELEN; i++)
+    {
+        switch (i)
+        {
+        case 0:
+            printf("LD: ");
+            break;
+        case 2:
+            printf(" |ID: ");
+            break;
+        case 10:
+            printf(" |BAT: ");
+            break;
+        case 12:
+            printf(" |CH: ");
+            break;
+        case 14:
+            printf(" |TEMP: ");
+            break;
+        case 26:
+            printf(" |HUM: ");
+            break;
+        case 34:
+            printf(" |CRC: ");
+            break;
+        default:
+            break;
+        }
+        printf("%d", buf[i]);
+    }
+}
 //-------------------------------------------------------------
 //--- function that printf and related will use to print
 int serial_putchar(char c, FILE* f)
@@ -567,7 +628,6 @@ boolean crcValid(unsigned long value, byte checksum)
     calculatedChecksum &= 0xF;
     return calculatedChecksum == checksum;
 }
-
 //-------------------------------------------------------------
 void swapArrayBinPos(byte last, byte first)
 {
