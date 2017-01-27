@@ -10,3 +10,6 @@
 ```
 
 From 6 repetions are 5 ok. Reason: one has 9000us not 8000uS:
+
+Schematic:
+[Schematic] [https://wiki.fhem.de/wiki/Datei:Fhemduino_schematic.png]

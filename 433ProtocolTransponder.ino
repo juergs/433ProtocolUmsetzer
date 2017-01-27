@@ -22,20 +22,21 @@ Helpers:
 
 
 
-Printf-Formats:
-==============
-%d %i	Decimal signed integer.
-%o	    Octal integer.
-%x %X	Hex integer.
-%u	    Unsigned integer.
-%c	    Character.
-%s	    String.	siehe unten.
-%f	    double
-%e %E	double.
-%g %G	double.
-%p	    pointer.
-%n	    Number of characters written by this printf. No argument expected.
-%%	%.  No argument expected.
+    Printf-Formats:
+    ==============
+    %d %i	Decimal signed integer.
+    %o	    Octal integer.
+    %x %X	Hex integer.
+    %u	    Unsigned integer.
+    %c	    Character.
+    %s	    String.	siehe unten.
+    %f	    double
+    %e %E	double.
+    %g %G	double.
+    %p	    pointer.
+    %n	    Number of characters written by this printf. No argument expected.
+    %%	%.  No argument expected.
+
 
 from: http://home.fhtw-berlin.de/~junghans/cref/FUNCTIONS/format.html
 
@@ -43,8 +44,8 @@ Basis + Decoding: Arduino sketch to receive NC7427 temperature/humidity RF senso
 Written by 'jurs' for German Arduino Forum: 
     https://github.com/jacobsax/bitArray-library-for-Arduino
 
-    where: C:\Users\Jürgen\Documents\GitHub\42Bit_Protocol
-********************************************************* */
+Where to find: C:\Users\Jürgen\Documents\GitHub\42Bit_Protocol
+********************************************************************* */
 
 #include <limits.h>
 #include <stdint.h>
